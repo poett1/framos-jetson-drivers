@@ -12,3 +12,10 @@ v4.3.1.0 (2025-12-18)
     - add fix for streaming gmsl on low fps
     - add basic ISP files for imx838, imx676, imx900
 
+l4t-r39.2.1 community port (2026-09-28)
+==========================
+    - Support for L4T-39.2.1 / Jetpack 7.2.1 on Jetson Orin (kernel 6.8)
+        - camera-core changes from l4t-r38.4, fitted to 39.2.1
+        - fr_* drivers and Orin overlays from l4t-r36.4.4
+    - build-tested with OE4T meta-tegra; not yet tested on hardware
+    - ISP files and build scripts unchanged from l4t-r36.4.4

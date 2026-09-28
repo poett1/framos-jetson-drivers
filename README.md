@@ -1,6 +1,30 @@
 &nbsp;
 [Release Notes l4t‐r36.4.4](https://github.com/framosimaging/framos-jetson-drivers/wiki/Release-Notes-l4t%E2%80%90r36.4.4)
 
+# Jetpack 7.2.1 / L4T 39.2.1 (branch l4t-r39.2.1)
+
+This branch is a community port of the FRAMOS drivers to **Jetpack 7.2.1 /
+L4T 39.2.1 (Nvidia tag `jetson_39.2.1`, kernel 6.8) for Jetson Orin**. It is
+not an official FRAMOS release; FRAMOS' own Jetpack 7 branch (l4t-r38.4)
+supports AGX Thor only.
+
+- `source/` holds the clean L4T 39.2.1 kernel OOT sources (first commit),
+  followed by the FRAMOS changes:
+  - the camera-core changes (camera_common, sensor_common, tegracam_ctrls/v4l2,
+    regmap_util, vi/channel.c, vi/vi5_fops.c and headers), taken from the
+    l4t-r38.4 versions and fitted to 39.2.1;
+  - the 50 fr_* sensor, serdes and bridge drivers, as in l4t-r36.4.4;
+  - the 192 Orin overlays (p3767/p3768 Orin Nano/NX devkit, p3737 AGX Orin),
+    as in l4t-r36.4.4.
+- Build-tested on 2026-09-25 with OE4T meta-tegra (L4T 39.2.1, kernel
+  6.8.12). All 24 driver modules and 192 overlays build, and the
+  fr_fpa_a_p22 + fr_imx900-cam1-4lane + fr_cam1-gmsl overlays apply to the
+  Orin Nano devkit device tree. **Not yet tested on hardware.**
+- `isp/`, `tools/`, `firmware/` and `build/` are carried unchanged from
+  l4t-r36.4.4. The ISP override files are the Jetpack 6 ones (there are no
+  .nito files for Jetpack 7), and the target/cross-compile scripts have not
+  been adapted to 39.2.1. The procedure below still describes Jetpack 6.
+
 
 # Short procedure
 
@@ -12,12 +36,15 @@ If using cross-compilation, the "Nvidia tag" is used to checkout to correct tag 
 
 | Jetpack / L4T version |    Nvidia tag   |         Framos branch        |
 |-----------------------|-----------------|------------------------------|
+| ** 7.2.1 / 39.2.1     | jetson_39.2.1   | l4t-r39.2.1                  |
 | 6.2.1 / 36.4.4        | jetson_36.4.4   | l4t-r36.4.4                  |
 | * 6.2 / 36.4.3        | jetson_36.4.3   | l4t-r36.4.3                  |
 | 6.1 / 36.4            | jetson_36.4     | l4t-r36.4                    |
 | 6.0 / 36.3            | jetson_36.3     | l4t-r36.3                    |
 
 _*_ [_Download overlay that fixes issue that causes blurry image capture (only Jetpack 6.2)_](https://developer.nvidia.com/embedded/jetson-linux-r3643#:~:text=Additional%20Files,for%20JetPack%206.2.1.)
+
+_**_ _Community port for Jetson Orin, build-tested only; see the section at the top._
 
 ## 1. Get & Install Framos drivers
 Two methods:
