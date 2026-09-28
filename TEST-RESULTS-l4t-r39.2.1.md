@@ -8,7 +8,7 @@ Hardware test of this branch, 2026-09-28.
 |---|---|
 | Build, 24 driver modules and 192 overlays | ✅ builds against L4T 39.2.1, kernel 6.8.12 |
 | IMX900 probe over GMSL3 | ✅ detected, bound to tegra-capture-vi |
-| Raw V4L2 capture, 2064x1552 in 12/10/8-bit | ✅ each full-resolution mode reaches its maximum frame rate (72/117/125 fps), no CSI errors, once the frame-rate control is set (issue 1) |
+| Raw V4L2 capture, 2064x1552 in 12/10/8-bit | ✅ 72 fps by default; each full-resolution mode reaches its maximum (72/117/125 fps), no CSI errors (issue 1, fixed) |
 | Argus (nvarguscamerasrc, argus samples) | ❌ no camera: Jetpack 7.2 needs a NITO tuning file, and there is none for the IMX900 (issue 2) |
 
 ## Setup
@@ -88,22 +88,47 @@ The ISP opens, but ISP initialisation fails for lack of a NITO file (issue 2).
 
 ## Known issues
 
-### 1. V4L2 controls start at their minimum values
+### 1. V4L2 controls started at their minimum values (fixed)
 
-After probe the current values are `Frame Rate` = 1500000 (1.5 fps) and
-`Exposure` near its minimum. The DT defaults are 72 fps and 10 ms for mode 0,
-and the controls do report those as their defaults. The reported default also
-stays at mode 0's 72 fps in the 10- and 8-bit modes. So a raw V4L2 capture
-that sets no controls runs at 1.5 fps, in every mode.
+**Fixed in 33670738** ("fr_imx900: start GAIN, EXPOSURE and FRAME_RATE at their
+DT defaults"). Verified on 2026-09-28.
+
+Before the fix, the current values after probe were `Frame Rate` = 1500000
+(1.5 fps) and `Exposure` near its minimum, although the DT defaults are 72 fps
+and 10 ms for mode 0. So a raw V4L2 capture that set no controls ran at 1.5 fps,
+in every mode.
 
 The cause is the ordering in the tegracam control init. The controls are
 created with placeholder defaults, then their ranges are narrowed to the
 mode's DT values. Narrowing clamps the current value to the new minimum
-instead of loading the DT default.
+instead of loading the DT default. Argus sets these controls itself, which
+hides the problem.
 
-Argus sets these controls itself. With plain V4L2, set `frame_rate` and
-`exposure` explicitly, to a value different from the current one, before or
-during streaming.
+The driver now copies the DT defaults into the controls at probe. There is no
+register access: `imx900_set_mode()` enables `override_enable`, so tegracam
+applies the current values at every stream start.
+
+After a fresh boot, `v4l2-ctl -C frame_rate -C exposure -C gain` gives
+`72000000` / `10000` / `0`. A plain
+`gst-launch-1.0 v4l2src ! "video/x-bayer,format=rggb12le,width=2064,height=1552" ! fakesink`
+runs at 72 fps.
+
+**Setting the frame rate.** `Frame Rate`, `Exposure` and `Gain` are 64-bit
+controls. GStreamer's `v4l2src extra-controls` skips them ("Control type ...
+not supported for extra controls"), and caps `framerate` is not passed to the
+sensor. Use `VIDIOC_S_EXT_CTRLS`, for example
+`v4l2-ctl -d /dev/video0 --set-ctrl frame_rate=117000000` (the value is fps ×
+10^6).
+
+The control range is the range of the mode that streamed last. It only
+changes at stream start, not when the format is set:
+
+- Rates inside the active mode's range can be set any time, before or during
+  streaming, and are kept for later streams.
+- Rates above the last mode's limit, such as 117 fps for the 10-bit mode after
+  a 12-bit stream (limit 72 fps), are clamped when set before streaming. Set
+  them while the stream in the target mode runs. After that the value is kept,
+  and the next stream in that mode starts at it.
 
 ### 2. Argus needs a NITO file on Jetpack 7.2
 

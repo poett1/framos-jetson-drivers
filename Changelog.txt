@@ -24,3 +24,4 @@ l4t-r39.2.1 community port (2026-09-28)
         - Argus needs an IMX900 NITO file (Jetpack 7.2 rejects .isp)
         - V4L2 controls start at their minimum (1.5 fps) until set
       see TEST-RESULTS-l4t-r39.2.1.md
+    - fr_imx900: controls start at their DT defaults (72 fps / 10 ms) instead of the minimum

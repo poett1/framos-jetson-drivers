@@ -22,7 +22,7 @@ supports AGX Thor only.
   over GMSL3 (fr_fpa_a_p22 + fr_imx900-cam1-4lane + fr_cam1-gmsl). The sensor
   probes, and raw V4L2 capture of 2064x1552 RGGB12 runs at 60 fps. **Argus does
   not work yet:** Jetpack 7.2 requires a NITO tuning file for the IMX900, and
-  raw V4L2 capture must set `frame_rate`/`exposure` explicitly. See
+  V4L2 controls are 64-bit (use `v4l2-ctl`, not `v4l2src extra-controls`). See
   [TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md).
 - `isp/`, `tools/`, `firmware/` and `build/` are carried unchanged from
   l4t-r36.4.4. The ISP override files are the Jetpack 6 ones (there are no
