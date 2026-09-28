@@ -297,6 +297,33 @@ static int imx900_set_group_hold(struct tegracam_device *tc_dev, bool val)
 	return err;
 }
 
+/*
+ * tegracam creates GAIN, EXPOSURE and FRAME_RATE with placeholder defaults and
+ * then narrows their ranges to the mode's DT values, which clamps the current
+ * values to the new minimum (e.g. 1.5 fps). Argus sets these controls itself,
+ * but a plain V4L2 client would stream at the minimum. Start from the DT
+ * defaults instead. No register access here: imx900_set_mode() enables
+ * override_enable, so tegracam applies the current values at stream start.
+ */
+static void imx900_init_ctrl_defaults(struct tegracam_device *tc_dev)
+{
+	static const u32 ids[] = {
+		TEGRA_CAMERA_CID_FRAME_RATE,
+		TEGRA_CAMERA_CID_EXPOSURE,
+		TEGRA_CAMERA_CID_GAIN,
+	};
+	struct v4l2_ctrl *ctrl;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(ids); i++) {
+		ctrl = fr_find_v4l2_ctrl(tc_dev, ids[i]);
+		if (!ctrl)
+			continue;
+		*ctrl->p_new.p_s64 = ctrl->default_value;
+		*ctrl->p_cur.p_s64 = ctrl->default_value;
+	}
+}
+
 static int imx900_update_ctrl(struct tegracam_device *tc_dev, int ctrl_id,
 				u64 current_val, u64 default_val, u64 min_val,
 								u64 max_val)
@@ -3140,6 +3167,8 @@ static int imx900_probe(struct i2c_client *client,
 					(ARRAY_SIZE(imx900_data_rate_menu)-1));
 	if (err)
 		return err;
+
+	imx900_init_ctrl_defaults(tc_dev);
 
 	list_add_tail(&priv->entry, &imx900_sensor_list);
 
