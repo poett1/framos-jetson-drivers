@@ -1,0 +1,129 @@
+# Test results: l4t-r39.2.1 on Jetson Orin Nano
+
+Hardware test of this branch, 2026-09-28.
+
+## Summary
+
+| Area | Result |
+|---|---|
+| Build, 24 driver modules and 192 overlays | ✅ builds against L4T 39.2.1, kernel 6.8.12 |
+| IMX900 probe over GMSL3 | ✅ detected, bound to tegra-capture-vi |
+| Raw V4L2 capture, 2064x1552 RGGB12 | ✅ steady 60 fps, no CSI errors, once the frame-rate control is set (issue 1) |
+| Argus (nvarguscamerasrc, argus samples) | ❌ no camera: Jetpack 7.2 needs a NITO tuning file, and there is none for the IMX900 (issue 2) |
+
+## Setup
+
+- **Board:** NVIDIA Jetson Orin Nano Engineering Reference Developer Kit Super
+  (p3768 carrier, p3767-0005 module).
+- **Software:** L4T R39.2.1 (GCID 46758480), kernel `6.8.12-l4t-r39.2.1-1021.21`.
+  Built with Yocto (OE4T meta-tegra, wrynose branch, commit 2e37d167) from
+  this branch's sources as one patch on the stock `nvidia-kernel-oot` 39.2.1
+  sources.
+- **Camera:** FRAMOS IMX900 over GMSL3. The serializer is a MAX96793 (I2C 0x42)
+  and the deserializer a MAX96792 (I2C 0x6a), with the FPA-A/P22 adapter on
+  the devkit's CAM1 connector. The CSI cable between deserializer and Jetson
+  was longer than usual.
+- **Overlays**, applied by the UEFI plugin manager:
+  `tegra234-p3767-camera-p3768-fr_fpa_a_p22-overlay.dtbo`,
+  `tegra234-p3767-camera-p3768-fr_imx900-cam1-4lane-overlay.dtbo`,
+  `tegra234-p3767-camera-p3768-fr_cam1-gmsl-overlay.dtbo`.
+- **ISP override file:** `isp/IMX900_IRC650.isp` installed as
+  `/var/nvidia/nvcam/settings/camera_overrides.isp`.
+
+## Checks and results
+
+### Probe
+
+`fr_imx900`, `fr_common`, `fr_max96792` and `fr_max96793` load. `dmesg`:
+
+```
+imx900 9-001a: probing v4l2 sensor
+imx900 9-001a: initializing GMSL...
+imx900 9-001a: tegracam sensor driver:imx900_v2.0.6
+tegra-camrtc-capture-vi tegra-capture-vi: subdev imx900 9-001a bound
+imx900 9-001a: Detected imx900 sensor
+```
+
+`/dev/video0` and `/dev/media0` exist. The media graph is
+`imx900 9-001a` (SRGGB12_1X12 2064x1552) → `nvcsi` → `vi-output, imx900 9-001a`.
+
+### Raw V4L2 capture
+
+This command delivered all 400 frames:
+
+```
+gst-launch-1.0 v4l2src device=/dev/video0 num-buffers=400 \
+    extra-controls="c,frame_rate=60000000" \
+    ! "video/x-bayer,format=rggb12le,width=2064,height=1552" \
+    ! fakesink sync=false
+```
+
+The frame interval was a steady 16.7 ms (60 fps). The kernel logged no CSI or
+PHY errors, over the longer-than-usual CSI cable.
+
+Without explicit caps, `v4l2src` negotiates `gbrg12le` at 1032x776. The driver
+then logs `selected mode is not supported with GBRG12 pattern, switching to
+RGGB12`.
+
+### Argus
+
+The ISP opens, but ISP initialisation fails for lack of a NITO file (issue 2).
+
+## Known issues
+
+### 1. V4L2 controls start at their minimum values
+
+After probe the current values are `Frame Rate` = 1500000 (1.5 fps) and
+`Exposure` near its minimum. The DT defaults are 72 fps and 10 ms for mode 0,
+and the controls do report those as their defaults. So a raw V4L2 capture
+that sets no controls runs at 1.5 fps, in every mode.
+
+The cause is the ordering in the tegracam control init. The controls are
+created with placeholder defaults, then their ranges are narrowed to the
+mode's DT values. Narrowing clamps the current value to the new minimum
+instead of loading the DT default.
+
+Argus sets these controls itself. With plain V4L2, set `frame_rate` and
+`exposure` explicitly, to a value different from the current one, before or
+during streaming.
+
+### 2. Argus needs a NITO file on Jetpack 7.2
+
+Jetpack 7.2 uses NITO tuning files only. Argus logs:
+
+- with the `.isp` override only: `NvCameraIspGetNitoPathIfEnabled() returned
+  error`;
+- with `NVCAMERA_NITO_PATH=CONFIG`, which was the Jetpack 7.0/7.1 fallback:
+  "legacy way of using text based configuration file ... is not allowed
+  anymore". In this mode Argus writes a binary config generated from
+  `camera_overrides.isp` to `$HOME/binary.cfg`, and NVIDIA's Windows tuning
+  tool converts that file to a NITO file.
+
+The module's badge `imx900_rear_framos` is not one Argus knows ("Could not map
+module to ISP config string").
+
+A stand-in NITO from another sensor does not work either. With NVIDIA's
+`imx477.nito`, Argus reports `knobSetId 0 not found`, because the knob sets are
+tied to the IMX477's sensor modes.
+
+**Argus capture on Jetpack 7.2 needs an IMX900 NITO file**, from FRAMOS or
+converted from the binary config above.
+
+### 3. `serdes_pix_clk_hz` of the GMSL modes
+
+The GMSL overlays set `serdes_pix_clk_hz = "12000000000"`, the GMSL3 link
+rate. The camera core uses that value to derive the CSI clock, so the RCE
+firmware reports `MIPI clock rate: 18000000 kHz` and configures T_HS settle
+automatically from it. Capture was clean in this test anyway. If CSI errors
+appear with other cables or modes, correcting this value, or setting
+`cil_settletime`, is a place to start.
+
+## Not tested
+
+- Sensors other than the IMX900. IMX900 modes other than mode 0; the binned
+  1032x776 mode only ran at the 1.5 fps default (issue 1).
+- The direct MIPI (non-GMSL) connection.
+- AGX Orin (p3737).
+- Trigger and sync modes.
+- Image quality.
+- Long-term stability.

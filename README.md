@@ -17,9 +17,13 @@ supports AGX Thor only.
   - the 192 Orin overlays (p3767/p3768 Orin Nano/NX devkit, p3737 AGX Orin),
     as in l4t-r36.4.4.
 - Build-tested on 2026-09-25 with OE4T meta-tegra (L4T 39.2.1, kernel
-  6.8.12). All 24 driver modules and 192 overlays build, and the
-  fr_fpa_a_p22 + fr_imx900-cam1-4lane + fr_cam1-gmsl overlays apply to the
-  Orin Nano devkit device tree. **Not yet tested on hardware.**
+  6.8.12): all 24 driver modules and 192 overlays build.
+- Hardware-tested on 2026-09-28 on an Orin Nano devkit Super with an IMX900
+  over GMSL3 (fr_fpa_a_p22 + fr_imx900-cam1-4lane + fr_cam1-gmsl). The sensor
+  probes, and raw V4L2 capture of 2064x1552 RGGB12 runs at 60 fps. **Argus does
+  not work yet:** Jetpack 7.2 requires a NITO tuning file for the IMX900, and
+  raw V4L2 capture must set `frame_rate`/`exposure` explicitly. See
+  [TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md).
 - `isp/`, `tools/`, `firmware/` and `build/` are carried unchanged from
   l4t-r36.4.4. The ISP override files are the Jetpack 6 ones (there are no
   .nito files for Jetpack 7), and the target/cross-compile scripts have not
@@ -44,7 +48,7 @@ If using cross-compilation, the "Nvidia tag" is used to checkout to correct tag 
 
 _*_ [_Download overlay that fixes issue that causes blurry image capture (only Jetpack 6.2)_](https://developer.nvidia.com/embedded/jetson-linux-r3643#:~:text=Additional%20Files,for%20JetPack%206.2.1.)
 
-_**_ _Community port for Jetson Orin, build-tested only; see the section at the top._
+_**_ _Community port for Jetson Orin; V4L2 capture tested, Argus needs an IMX900 NITO file. See the section at the top._
 
 ## 1. Get & Install Framos drivers
 Two methods:
