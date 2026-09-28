@@ -8,7 +8,7 @@ Hardware test of this branch, 2026-09-28.
 |---|---|
 | Build, 24 driver modules and 192 overlays | ✅ builds against L4T 39.2.1, kernel 6.8.12 |
 | IMX900 probe over GMSL3 | ✅ detected, bound to tegra-capture-vi |
-| Raw V4L2 capture, 2064x1552 RGGB12 | ✅ steady 60 fps, no CSI errors, once the frame-rate control is set (issue 1) |
+| Raw V4L2 capture, 2064x1552 in 12/10/8-bit | ✅ each full-resolution mode reaches its maximum frame rate (72/117/125 fps), no CSI errors, once the frame-rate control is set (issue 1) |
 | Argus (nvarguscamerasrc, argus samples) | ❌ no camera: Jetpack 7.2 needs a NITO tuning file, and there is none for the IMX900 (issue 2) |
 
 ## Setup
@@ -65,6 +65,23 @@ Without explicit caps, `v4l2src` negotiates `gbrg12le` at 1032x776. The driver
 then logs `selected mode is not supported with GBRG12 pattern, switching to
 RGGB12`.
 
+### Full-resolution modes, 12/10/8-bit
+
+The driver selects the mode from the requested pixel format at 2064x1552, and
+the `Frame Rate` control range follows the mode. Each stream was started, then
+`Frame Rate` was set to the mode's maximum while streaming. The table gives the
+steady-state interval over the last 300 frames:
+
+| Mode | Format (GStreamer caps) | Frame Rate set | Measured interval | Frame rate |
+|---|---|---|---|---|
+| mode 0 | 12-bit RGGB (`rggb12le`) | 72 fps | 13.9 ms | 72 fps |
+| mode 5 | 10-bit RGGB (`rggb10le`) | 117 fps | 8.5 ms | ~117 fps |
+| mode 10 | 8-bit RGGB (`rggb`) | 125 fps | 8.0 ms | 125 fps |
+
+The control maxima reported per mode were 72.07, 117.04 and 125.18 fps. The
+kernel logged no errors. Exposure was left at its (near-minimum) initial value,
+so this checks timing, not image content.
+
 ### Argus
 
 The ISP opens, but ISP initialisation fails for lack of a NITO file (issue 2).
@@ -75,7 +92,8 @@ The ISP opens, but ISP initialisation fails for lack of a NITO file (issue 2).
 
 After probe the current values are `Frame Rate` = 1500000 (1.5 fps) and
 `Exposure` near its minimum. The DT defaults are 72 fps and 10 ms for mode 0,
-and the controls do report those as their defaults. So a raw V4L2 capture
+and the controls do report those as their defaults. The reported default also
+stays at mode 0's 72 fps in the 10- and 8-bit modes. So a raw V4L2 capture
 that sets no controls runs at 1.5 fps, in every mode.
 
 The cause is the ordering in the tegracam control init. The controls are
@@ -120,8 +138,8 @@ appear with other cables or modes, correcting this value, or setting
 
 ## Not tested
 
-- Sensors other than the IMX900. IMX900 modes other than mode 0; the binned
-  1032x776 mode only ran at the 1.5 fps default (issue 1).
+- Sensors other than the IMX900. IMX900 modes below full resolution; the
+  binned 1032x776 mode only ran at the 1.5 fps default (issue 1).
 - The direct MIPI (non-GMSL) connection.
 - AGX Orin (p3737).
 - Trigger and sync modes.
