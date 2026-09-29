@@ -56,6 +56,7 @@
 #define MAX96792_CTRL2_RESET_ONESHOT_B	0x20
 #define MAX96792_CTRL3_LOCKED		0x08
 #define MAX96792_RX_FEC_EN		0x02
+#define MAX96792_GMSL2_LOCK_POLLS	200	/* x 10 ms */
 
 #define MAX96792_CSI_MODE_4X2		0x1
 #define MAX96792_CSI_MODE_2X4		0x4
@@ -352,6 +353,19 @@ static int max96792_gmsl2_6gbps_startup(struct device *dev)
 		link = (csi_link == GMSL_SERDES_CSI_LINK_B) ? 1 : 0;
 		rate_addr = link ? MAX96792_REG4_ADDR : MAX96792_REG1_ADDR;
 
+		/*
+		 * A serializer already switched to GMSL3 (Jetson reboot or
+		 * module reload without a power cycle of the camera) locks at
+		 * the GMSL3 strap by itself: keep that link.
+		 */
+		if (!link && !max96792_read_reg_nocache(dev,
+				MAX96792_CTRL3_ADDR, &ctrl3) &&
+				(ctrl3 & MAX96792_CTRL3_LOCKED)) {
+			dev_info(dev, "%s: link A already locked, keeping its mode\n",
+				__func__);
+			continue;
+		}
+
 		err = max96792_read_reg_nocache(dev, rate_addr, &rate);
 		err |= max96792_read_reg_nocache(dev, MAX96792_REG4_ADDR, &reg4);
 		err |= max96792_read_reg_nocache(dev, MAX96792_REG6_ADDR, &reg6);
@@ -385,8 +399,14 @@ static int max96792_gmsl2_6gbps_startup(struct device *dev)
 			msleep(100);
 		}
 
-		/* CTRL3 reports the lock of link A only. */
-		for (n = 0; !link && n < 20; n++) {
+		/*
+		 * CTRL3 reports the lock of link A only. The first GMSL2 lock
+		 * after serializer power-up can take several 100 ms. If the
+		 * serializer setup starts before it, some of its writes (the
+		 * switch to GMSL3) still land and the link never locks in
+		 * GMSL2 again, so wait for it.
+		 */
+		for (n = 0; !link && n < MAX96792_GMSL2_LOCK_POLLS; n++) {
 			if (!max96792_read_reg_nocache(dev, MAX96792_CTRL3_ADDR,
 					&ctrl3) && (ctrl3 & MAX96792_CTRL3_LOCKED))
 				break;
@@ -396,11 +416,11 @@ static int max96792_gmsl2_6gbps_startup(struct device *dev)
 			dev_info(dev, "%s: link B started in GMSL2 6 Gbps\n",
 				__func__);
 		else if (ctrl3 & MAX96792_CTRL3_LOCKED)
-			dev_info(dev, "%s: link A locked in GMSL2 6 Gbps\n",
-				__func__);
+			dev_info(dev, "%s: link A locked in GMSL2 6 Gbps after about %d ms\n",
+				__func__, 100 + n * 10);
 		else
-			dev_warn(dev, "%s: link A not locked in GMSL2 6 Gbps\n",
-				__func__);
+			dev_warn(dev, "%s: link A not locked in GMSL2 6 Gbps after %d ms\n",
+				__func__, 100 + n * 10);
 
 		/* Stage the original FEC setting; GMSL3 needs it again. */
 		max96792_write_reg(dev, MAX96792_MIPI_TX0_ADDR(link), fec);
