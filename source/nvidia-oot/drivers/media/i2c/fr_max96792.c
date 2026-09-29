@@ -39,6 +39,24 @@
 
 #define MAX96792_CTRL0_ADDR		0x10
 
+/*
+ * Link mode registers, named as in the upstream maxim-serdes max9296a
+ * driver, which covers the MAX96792A.
+ */
+#define MAX96792_REG1_ADDR		0x01	/* [1:0] RX_RATE link A */
+#define MAX96792_REG4_ADDR		0x04	/* [1:0] RX_RATE link B */
+#define MAX96792_REG6_ADDR		0x06
+#define MAX96792_CTRL2_ADDR		0x12
+#define MAX96792_CTRL3_ADDR		0x13
+#define MAX96792_MIPI_TX0_ADDR(link)	(0x28 + (link) * 0x5000)
+#define MAX96792_RX_RATE_MASK		0x03
+#define MAX96792_RX_RATE_6GBPS		0x02
+#define MAX96792_REG4_GMSL3(link)	(0x40 << (link))
+#define MAX96792_REG6_GMSL2(link)	(0x40 << (link))
+#define MAX96792_CTRL2_RESET_ONESHOT_B	0x20
+#define MAX96792_CTRL3_LOCKED		0x08
+#define MAX96792_RX_FEC_EN		0x02
+
 #define MAX96792_CSI_MODE_4X2		0x1
 #define MAX96792_CSI_MODE_2X4		0x4
 #define MAX96792_LANE_MAP1_4X2		0x44
@@ -116,6 +134,7 @@ struct max96792 {
 	int reset_gpio;
 	int pw_ref;
 	struct regulator *vdd_cam_1v2;
+	bool gmsl2_6gbps_startup;
 };
 
 static int max96792_write_reg(struct device *dev,
@@ -133,6 +152,24 @@ static int max96792_write_reg(struct device *dev,
 		__func__, addr, val);
 
 	usleep_range(100, 110);
+
+	return err;
+}
+
+/* Read from the chip, not the regmap cache (status, or after a reset). */
+static int max96792_read_reg_nocache(struct device *dev, u16 addr, u8 *val)
+{
+	struct max96792 *priv = dev_get_drvdata(dev);
+	unsigned int v;
+	int err;
+
+	regcache_cache_bypass(priv->regmap, true);
+	err = regmap_read(priv->regmap, addr, &v);
+	regcache_cache_bypass(priv->regmap, false);
+	if (err)
+		dev_err(dev, "%s:i2c read failed, 0x%x\n", __func__, addr);
+	else
+		*val = v;
 
 	return err;
 }
@@ -292,6 +329,86 @@ ret:
 }
 EXPORT_SYMBOL(max96792_setup_link);
 
+/*
+ * framos,gmsl2-6gbps-startup: bring each registered link up in GMSL2 at
+ * 6 Gbps first. An FSM:GO serializer powers up in that mode, and the
+ * serializer setup that follows max96792_gmsl_setup() switches it to GMSL3
+ * over a running link. FRAMOS deserializer boards start in that mode as
+ * well; boards strapped to GMSL3 12 Gbps (e.g. the ADI AD-GMSL792MIPI-EVK)
+ * never meet the serializer without this. The GMSL3 values written after
+ * this are staged and take effect with the link reset in
+ * max96792_setup_link(). Called with priv->lock held.
+ */
+static int max96792_gmsl2_6gbps_startup(struct device *dev)
+{
+	struct max96792 *priv = dev_get_drvdata(dev);
+	u8 rate, reg4, reg6, fec, ctrl2, ctrl3 = 0;
+	int err, i, n, link;
+	u16 rate_addr;
+
+	for (i = 0; i < priv->num_src; i++) {
+		u32 csi_link = priv->sources[i].g_ctx->serdes_csi_link;
+
+		link = (csi_link == GMSL_SERDES_CSI_LINK_B) ? 1 : 0;
+		rate_addr = link ? MAX96792_REG4_ADDR : MAX96792_REG1_ADDR;
+
+		err = max96792_read_reg_nocache(dev, rate_addr, &rate);
+		err |= max96792_read_reg_nocache(dev, MAX96792_REG4_ADDR, &reg4);
+		err |= max96792_read_reg_nocache(dev, MAX96792_REG6_ADDR, &reg6);
+		err |= max96792_read_reg_nocache(dev,
+				MAX96792_MIPI_TX0_ADDR(link), &fec);
+		if (err)
+			return -EIO;
+
+		rate = (rate & ~MAX96792_RX_RATE_MASK) | MAX96792_RX_RATE_6GBPS;
+		if (link)
+			reg4 = rate;
+		err = max96792_write_reg(dev, rate_addr, rate);
+		err |= max96792_write_reg(dev, MAX96792_REG4_ADDR,
+				reg4 & ~MAX96792_REG4_GMSL3(link));
+		err |= max96792_write_reg(dev, MAX96792_REG6_ADDR,
+				reg6 | MAX96792_REG6_GMSL2(link));
+		err |= max96792_write_reg(dev, MAX96792_MIPI_TX0_ADDR(link),
+				fec & ~MAX96792_RX_FEC_EN);
+		if (err)
+			return -EIO;
+
+		/* Link select and one-shot reset, then 100 ms for the lock. */
+		err = max96792_write_link(dev, csi_link);
+		if (err)
+			return err;
+		/* Link B has its own one-shot reset. */
+		if (link && !max96792_read_reg_nocache(dev,
+				MAX96792_CTRL2_ADDR, &ctrl2)) {
+			max96792_write_reg(dev, MAX96792_CTRL2_ADDR,
+				ctrl2 | MAX96792_CTRL2_RESET_ONESHOT_B);
+			msleep(100);
+		}
+
+		/* CTRL3 reports the lock of link A only. */
+		for (n = 0; !link && n < 20; n++) {
+			if (!max96792_read_reg_nocache(dev, MAX96792_CTRL3_ADDR,
+					&ctrl3) && (ctrl3 & MAX96792_CTRL3_LOCKED))
+				break;
+			msleep(10);
+		}
+		if (link)
+			dev_info(dev, "%s: link B started in GMSL2 6 Gbps\n",
+				__func__);
+		else if (ctrl3 & MAX96792_CTRL3_LOCKED)
+			dev_info(dev, "%s: link A locked in GMSL2 6 Gbps\n",
+				__func__);
+		else
+			dev_warn(dev, "%s: link A not locked in GMSL2 6 Gbps\n",
+				__func__);
+
+		/* Stage the original FEC setting; GMSL3 needs it again. */
+		max96792_write_reg(dev, MAX96792_MIPI_TX0_ADDR(link), fec);
+	}
+
+	return 0;
+}
+
 int max96792_gmsl_setup(struct device *dev)
 {
 	struct max96792 *priv = dev_get_drvdata(dev);
@@ -299,6 +416,14 @@ int max96792_gmsl_setup(struct device *dev)
 
 	dev_dbg(dev, "%s++\n", __func__);
 	mutex_lock(&priv->lock);
+
+	if (priv->gmsl2_6gbps_startup) {
+		err = max96792_gmsl2_6gbps_startup(dev);
+		if (err)
+			dev_err(dev, "%s: GMSL2 6 Gbps startup failed: %d\n",
+				__func__, err);
+		err = 0;
+	}
 
 	max96792_write_reg(dev, 0x01, 0x03);
 	max96792_write_reg(dev, 0x04, 0xC3);
@@ -771,6 +896,9 @@ static int max96792_parse_dt(struct max96792 *priv,
 		return err;
 	}
 	priv->max_src = value;
+
+	priv->gmsl2_6gbps_startup = of_property_read_bool(max96792_node,
+			"framos,gmsl2-6gbps-startup");
 
 	i2c_mux_ch_node = of_get_parent(max96792_node);
 	if (!i2c_mux_ch_node) {
