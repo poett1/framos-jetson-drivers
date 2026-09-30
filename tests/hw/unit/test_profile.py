@@ -20,6 +20,7 @@ def test_all_shipped_profiles_load():
         assert prof["image"] == {"min_stddev": 1.0}
         assert prof["argus_tuning"] in ("nito", "isp")
         assert isinstance(prof["known_failures"], dict)
+        assert isinstance(prof["flaky"], dict)
 
 
 def test_missing_key_names_it(tmp_path):

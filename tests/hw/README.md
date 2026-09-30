@@ -73,6 +73,8 @@ Optional profile keys:
 - `known_failures: {"<file>::<test>": "<reason>"}`: these tests are expected to
   fail (strict xfail). If one starts passing, the run fails and says so; remove
   the entry.
+- `flaky: {"<file>::<test>": "<reason>"}`: intermittent failures (non-strict
+  xfail); passes show as XPASS, failures as XFAIL, neither fails the run.
 - `stream: {frames, window, rate_tolerance}`, `image: {min_stddev}`: pass
   criteria, defaults 450 / 300 / 0.02 and 1.0.
 

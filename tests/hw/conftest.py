@@ -66,6 +66,10 @@ def pytest_collection_modifyitems(config, items):
         reason = _known_failure(item.nodeid, prof["known_failures"])
         if reason:
             item.add_marker(pytest.mark.xfail(strict=True, reason=f"known failure: {reason}"))
+        reason = _known_failure(item.nodeid, prof["flaky"])
+        if reason:
+            # intermittent: a pass (XPASS) and a failure (XFAIL) are both reported, neither fails the run
+            item.add_marker(pytest.mark.xfail(strict=False, reason=f"flaky: {reason}"))
 
 
 def pytest_generate_tests(metafunc):

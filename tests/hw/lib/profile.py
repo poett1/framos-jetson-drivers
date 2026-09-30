@@ -9,6 +9,7 @@ DEFAULTS = {
     "image": {"min_stddev": 1.0},
     "argus_tuning": "nito",
     "known_failures": {},
+    "flaky": {},
 }
 
 V4L2_MODE = {"name": str, "pixelformat": str, "width": int, "height": int, "max_fps": float}
@@ -82,6 +83,7 @@ def load_profile(path):
     if prof.get("argus_tuning", "nito") not in ("nito", "isp"):
         errors.append(f"argus_tuning: must be nito or isp, got {prof['argus_tuning']!r}")
     _check(prof.get("known_failures", {}), dict, "known_failures", errors)
+    _check(prof.get("flaky", {}), dict, "flaky", errors)
     if errors:
         raise ProfileError(f"{path}: " + "; ".join(errors))
 
