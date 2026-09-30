@@ -68,6 +68,16 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.xfail(strict=True, reason=f"known failure: {reason}"))
 
 
+def pytest_generate_tests(metafunc):
+    """One test per profile mode: v4l2_mode (ids = mode name), argus_mode (ids = modeN)."""
+    prof = SESSION["profile"]
+    for arg, key, ident in (("v4l2_mode", "v4l2_modes", lambda m: m["name"]),
+                            ("argus_mode", "argus_modes", lambda m: f"mode{m['sensor_mode']}")):
+        if arg in metafunc.fixturenames:
+            modes = prof[key] if prof else [None]
+            metafunc.parametrize(arg, modes, ids=[ident(m) if m else "no-profile" for m in modes])
+
+
 @pytest.fixture(scope="session")
 def profile():
     if SESSION["profile"] is None:
