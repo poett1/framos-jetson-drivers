@@ -74,6 +74,30 @@ Optional profile keys:
 Pass `--profile=<path>` with `=`: pytest treats a separate path argument as a
 place to look for its configuration.
 
+## v4l2-compliance baselines
+
+NVIDIA's VI driver fails parts of `v4l2-compliance` by design, so a plain
+pass/fail would always be red. `compliance-baselines/<profile>.txt` lists the
+accepted failures, one `<node>: <test name>` per line (`node` is `video`,
+`subdev` or `media`), each with a `# reason`.
+
+- `test_no_new_failures[video|subdev|media]` fails on a failure that is not in
+  the baseline.
+- `test_known_failure[<node>: <test>]`, one per baseline line, reports XFAIL
+  while the failure persists. When it starts passing, the run fails
+  (strict XPASS): remove the line.
+
+For a new profile, or after a driver change that is meant to change the result:
+
+```
+sudo python3 -m pytest tests/hw --profile=... -m compliance --write-compliance-baseline
+```
+
+This writes the baseline from the run (the run itself still fails without a
+baseline). Add a `# reason` to every line, say whether it is an NVIDIA VI
+limitation or a FRAMOS driver issue, review, and commit. The video and subdev
+nodes are tested with `-d`/`-u`, the media device with `-M` (media device only).
+
 ## Boot-state test
 
 `controls` checks the control values right after boot. A second full run

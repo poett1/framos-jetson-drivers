@@ -17,11 +17,11 @@ sys.path.insert(0, str(HW_DIR))  # "lib" package; pytest 6.2 has no pythonpath i
 
 from lib.profile import ProfileError, load_profile  # noqa: E402
 from lib.report import TestResult, render_markdown, write_results  # noqa: E402
-from lib import dt, kmsg, media  # noqa: E402
+from lib import compliance, dt, kmsg, media  # noqa: E402
 from lib.sysinfo import install_type, l4t_release, repo_commit  # noqa: E402
 
 # per-session state; pytest 6.2 has no config.stash
-SESSION = {"profile": None, "meta": {}, "results": [], "results_dir": None}
+SESSION = {"profile": None, "meta": {}, "results": [], "results_dir": None, "compliance": None}
 
 
 def pytest_addoption(parser):
@@ -35,7 +35,7 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    SESSION.update(profile=None, meta={}, results=[], results_dir=None)
+    SESSION.update(profile=None, meta={}, results=[], results_dir=None, compliance=None)
     path = config.getoption("--profile")
     if not path:
         return
@@ -76,6 +76,10 @@ def pytest_generate_tests(metafunc):
         if arg in metafunc.fixturenames:
             modes = prof[key] if prof else [None]
             metafunc.parametrize(arg, modes, ids=[ident(m) if m else "no-profile" for m in modes])
+    if "known_failure" in metafunc.fixturenames:
+        params = compliance.known_failure_params(
+            compliance.read_baseline(compliance.baseline_path(prof["name"]))) if prof else []
+        metafunc.parametrize("known_failure", params, ids=[f"{k}: {n}" for k, n in params])
 
 
 @pytest.fixture(scope="session")
@@ -128,6 +132,28 @@ def dmesg_mark():
     """Returns a callable giving the CSI/PHY/RCE errors logged since the test started."""
     before = kmsg.kernel_log()
     return lambda: kmsg.new_errors(before, kmsg.kernel_log())
+
+
+@pytest.fixture(scope="session")
+def compliance_results(sensor):
+    """v4l2-compliance of the video node, sensor subdev and media device, run once."""
+    nodes = {"video": sensor.video, "subdev": sensor.subdev, "media": sensor.media}
+    SESSION["compliance"] = {kind: compliance.parse(compliance.run(kind, dev))
+                             for kind, dev in nodes.items()}
+    return SESSION["compliance"]
+
+
+def pytest_sessionfinish(session):
+    if session.config.getoption("--write-compliance-baseline") and SESSION["compliance"]:
+        meta = SESSION["meta"]
+        path = compliance.baseline_path(meta["profile"])
+        header = (f"# v4l2-compliance failures accepted for {meta['profile']}\n"
+                  f"# written {meta.get('date')} from commit {meta.get('commit')}, "
+                  f"L4T {meta.get('l4t')}; add '# reason' to each line")
+        compliance.write_baseline(path, {k: compliance.failures(r)
+                                         for k, r in SESSION["compliance"].items()}, header)
+        session.config.pluginmanager.get_plugin("terminalreporter").write_line(
+            f"compliance baseline written: {path}")
 
 
 def _message(report):
