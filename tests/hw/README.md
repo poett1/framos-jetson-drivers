@@ -39,7 +39,11 @@ python3 -m pytest tests/hw -m unit                                # no hardware,
 ```
 
 Groups (markers), in run order: `env`, `dt`, `probe`, `controls`, `stream`,
-`image`, `compliance`, `argus`. Tests that need the camera are skipped, not
+`image`, `argus`, `compliance`. `v4l2-compliance` sets controls to test values
+(for example `operation_mode` to Slave Mode, after which the IMX900 sends no
+frames); the suite restores them afterwards and runs compliance last.
+
+Tests that need the camera are skipped, not
 failed, when the sensor did not probe.
 
 At the end, the suite prints a Markdown table (for the test reports) and writes

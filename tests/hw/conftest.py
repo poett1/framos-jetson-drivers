@@ -17,7 +17,7 @@ sys.path.insert(0, str(HW_DIR))  # "lib" package; pytest 6.2 has no pythonpath i
 
 from lib.profile import ProfileError, load_profile  # noqa: E402
 from lib.report import TestResult, render_markdown, write_results  # noqa: E402
-from lib import compliance, dt, kmsg, media  # noqa: E402
+from lib import compliance, dt, kmsg, media, v4l2  # noqa: E402
 from lib.sysinfo import install_type, l4t_release, repo_commit  # noqa: E402
 
 # per-session state; pytest 6.2 has no config.stash
@@ -144,8 +144,14 @@ def dmesg_mark():
 def compliance_results(sensor):
     """v4l2-compliance of the video node, sensor subdev and media device, run once."""
     nodes = {"video": sensor.video, "subdev": sensor.subdev, "media": sensor.media}
+    # v4l2-compliance leaves controls at test values (seen: operation_mode = Slave Mode,
+    # after which the sensor sends no frames), so put them back afterwards
+    before = v4l2.snapshot_ctrls(sensor.video)
     SESSION["compliance"] = {kind: compliance.parse(compliance.run(kind, dev))
                              for kind, dev in nodes.items()}
+    left = v4l2.restore_ctrls(sensor.video, before)
+    if left:
+        raise RuntimeError(f"controls not restored after v4l2-compliance: {left}")
     return SESSION["compliance"]
 
 

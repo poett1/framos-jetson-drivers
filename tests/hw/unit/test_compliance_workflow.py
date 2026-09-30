@@ -23,7 +23,7 @@ def compliance_results():
 
 @pytest.fixture
 def suite(pytester):
-    for name in ("conftest.py", "pytest.ini", "test_07_compliance.py"):
+    for name in ("conftest.py", "pytest.ini", "test_08_compliance.py"):
         shutil.copy(HW_DIR / name, pytester.path / name)
     shutil.copytree(HW_DIR / "lib", pytester.path / "lib")
     shutil.copy(PROFILE, pytester.path / PROFILE.name)
@@ -31,8 +31,8 @@ def suite(pytester):
 
 
 def _run(suite, results, *args):
-    (suite.path / "test_07_compliance.py").write_text(
-        (HW_DIR / "test_07_compliance.py").read_text() + STUB.format(results=results))
+    (suite.path / "test_08_compliance.py").write_text(
+        (HW_DIR / "test_08_compliance.py").read_text() + STUB.format(results=results))
     return suite.runpytest_subprocess(f"--profile={PROFILE.name}", "-p", "no:cacheprovider",
                                       f"--results-dir={suite.path / 'res'}", *args)
 

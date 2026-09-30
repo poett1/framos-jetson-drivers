@@ -70,3 +70,32 @@ def test_no_first_frame_times_out_before_setting_controls():
                cmd_prefix=["sleep", "38"])
     assert time.monotonic() - t0 < 5
     assert subprocess.run(["pgrep", "-f", "^sleep 38$"], capture_output=True).returncode == 1
+
+
+# real v4l2-ctl -l after "v4l2-compliance -u": stock Jetpack 6.2.1 + FRAMOS l4t-r36.4.4, IMX900
+CTRL_LIST = '\nCamera Controls\n\n                     group_hold 0x009a2003 (bool)   : default=0 value=0 flags=execute-on-write\n                    sensor_mode 0x009a2008 (int64)  : min=0 max=15 step=1 default=0 value=0 flags=slider\n                           gain 0x009a2009 (int64)  : min=0 max=480 step=1 default=0 value=0 flags=slider\n                       exposure 0x009a200a (int64)  : min=9 max=660000 step=1 default=10000 value=9 flags=update, slider\n                     frame_rate 0x009a200b (int64)  : min=1500000 max=72000000 step=1 default=72000000 value=1500000 flags=update, slider\n           sensor_configuration 0x009a2032 (u32)    : min=0 max=4294967295 step=1 default=0 dims=[22] flags=read-only, volatile, has-payload\n         sensor_mode_i2c_packet 0x009a2033 (u32)    : min=0 max=4294967295 step=1 default=0 dims=[1026] flags=read-only, volatile, has-payload\n      sensor_control_i2c_packet 0x009a2034 (u32)    : min=0 max=4294967295 step=1 default=0 dims=[1026] flags=read-only, volatile, has-payload\n                    bypass_mode 0x009a2064 (intmenu): min=0 max=1 default=0 value=0 (0 0x0)\n                override_enable 0x009a2065 (intmenu): min=0 max=1 default=0 value=0 (0 0x0)\n                   height_align 0x009a2066 (int)    : min=1 max=16 step=1 default=1 value=1\n                     size_align 0x009a2067 (intmenu): min=0 max=2 default=0 value=0 (1 0x1)\n               write_isp_format 0x009a2068 (int)    : min=1 max=1 step=1 default=1 value=1\n       sensor_signal_properties 0x009a2069 (u32)    : min=0 max=4294967295 step=1 default=0 dims=[30][18] flags=read-only, has-payload\n        sensor_image_properties 0x009a206a (u32)    : min=0 max=4294967295 step=1 default=0 dims=[30][16] flags=read-only, has-payload\n      sensor_control_properties 0x009a206b (u32)    : min=0 max=4294967295 step=1 default=0 dims=[30][36] flags=read-only, has-payload\n              sensor_dv_timings 0x009a206c (u32)    : min=0 max=4294967295 step=1 default=0 dims=[30][16] flags=read-only, has-payload\n               low_latency_mode 0x009a206d (bool)   : default=0 value=0\n               preferred_stride 0x009a206e (int)    : min=0 max=65535 step=1 default=0 value=0\n    override_capture_timeout_ms 0x009a206f (int)    : min=-1 max=2147483647 step=1 default=2500 value=2500\n                      data_rate 0x009a2078 (menu)   : min=0 max=4 default=0 value=4 (594 Mbps/lane)\n                   test_pattern 0x009a2079 (menu)   : min=0 max=5 default=0 value=5 (Color Bar Vertically)\n                 operation_mode 0x009a207a (menu)   : min=0 max=1 default=0 value=1 (Slave Mode)\n                    black_level 0x009a207d (int64)  : min=0 max=4095 step=1 default=240 value=240 flags=slider, execute-on-write\n                   sensor_modes 0x009a2082 (int)    : min=0 max=30 step=1 default=30 value=15 flags=read-only\n            global_shutter_mode 0x009a2083 (menu)   : min=0 max=2 default=0 value=0 (Normal Mode)\n                conversion_gain 0x009a2085 (bool)   : default=0 value=0 flags=update\n'
+
+
+def test_parse_ctrl_list_writable_scalars_only():
+    from lib.v4l2 import parse_ctrl_list
+    ctrls = parse_ctrl_list(CTRL_LIST)
+    assert ctrls["operation_mode"] == 1 and ctrls["data_rate"] == 4 and ctrls["test_pattern"] == 5
+    assert ctrls["frame_rate"] == 1500000 and ctrls["bypass_mode"] == 0
+    for skipped in ("sensor_configuration", "sensor_modes", "group_hold", "sensor_signal_properties"):
+        assert skipped not in ctrls   # read-only, payload or execute-on-write
+
+
+def test_restore_ctrls_sets_only_changed_and_reports_leftovers():
+    from lib.v4l2 import restore_ctrls
+    state = {"operation_mode": 1, "data_rate": 4, "gain": 0, "stuck": 7}
+    written = []
+
+    def write(dev, name, value):
+        written.append((name, value))
+        if name != "stuck":
+            state[name] = value
+
+    left = restore_ctrls("/dev/video0", {"operation_mode": 0, "data_rate": 0, "gain": 0, "stuck": 1},
+                         read=lambda dev: dict(state), write=write)
+    assert sorted(written) == [("data_rate", 0), ("operation_mode", 0), ("stuck", 1)]
+    assert left == {"stuck": (1, 7)}

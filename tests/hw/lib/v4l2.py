@@ -121,3 +121,41 @@ def frame_stats(data, pixelformat):
     mean = sum(sample) / len(sample)
     var = sum((p - mean) ** 2 for p in sample) / len(sample)
     return mean, math.sqrt(var)
+
+
+CTRL_LINE_RE = re.compile(r"^\s*(\w+) 0x[0-9a-f]+ \(\w+\)\s*:(.*)$")
+
+
+def parse_ctrl_list(text):
+    """Writable scalar controls from `v4l2-ctl -l`: {name: value}. Read-only, payload
+    (dims=) and execute-on-write controls are left out."""
+    ctrls = {}
+    for line in text.splitlines():
+        m = CTRL_LINE_RE.match(line)
+        if not m:
+            continue
+        rest = m.group(2)
+        value = re.search(r"\bvalue=(-?\d+)", rest)
+        if value is None or "dims=" in rest or re.search(r"read-only|execute-on-write", rest):
+            continue
+        ctrls[m.group(1)] = int(value.group(1))
+    return ctrls
+
+
+def snapshot_ctrls(dev):
+    return parse_ctrl_list(subprocess.run(["v4l2-ctl", "-d", dev, "-l"], capture_output=True,
+                                          text=True, check=True).stdout)
+
+
+def restore_ctrls(dev, snapshot, read=snapshot_ctrls, write=set_ctrl):
+    """Set every control that differs from `snapshot` back; returns {name: (wanted, now)}
+    for controls that still differ afterwards."""
+    current = read(dev)
+    for name, value in snapshot.items():
+        if current.get(name) != value:
+            try:
+                write(dev, name, value)
+            except subprocess.CalledProcessError:
+                pass
+    now = read(dev)
+    return {n: (v, now.get(n)) for n, v in snapshot.items() if now.get(n) != v}
