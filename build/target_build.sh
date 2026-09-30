@@ -91,6 +91,104 @@ function check() {
 }
 
 
+export MODULES_DIR=/lib/modules/${KERNEL_RELEASE}
+export FRAMOS_MODULES_DIR=${MODULES_DIR}/updates/framos
+export FRAMOS_DEPMOD_CONF=/etc/depmod.d/framos.conf
+export FRAMOS_DTBO_DIR=/boot/framos/dtbo
+
+# print the built modules to install: fr_*, tegra-camera, and every built module
+# that depends on one of them, directly or indirectly (the camera-core changes
+# alter symbol CRCs, CONFIG_MODVERSIONS)
+function _camera_stack() {
+    local -A path=() deps=() selected=()
+    local ko name changed=1
+    while read -r ko; do
+        name=$(basename ${ko} .ko | tr - _)
+        path[${name}]=${ko}
+        deps[${name}]=" $(modinfo -F depends ${ko} | tr - _ | tr , ' ') "
+        [[ ${name} == fr_* || ${name} == tegra_camera ]] && selected[${name}]=1
+    done < <(find ${L4T_SOURCE}/nvidia-oot ${L4T_SOURCE}/hwpm -name '*.ko')
+    while [ ${changed} = 1 ]; do
+        changed=0
+        for name in "${!path[@]}"; do
+            [ -n "${selected[${name}]}" ] && continue
+            for dep in ${deps[${name}]}; do
+                if [ -n "${selected[${dep}]}" ]; then
+                    selected[${name}]=1
+                    changed=1
+                    break
+                fi
+            done
+        done
+    done
+    # modules the stock install does not ship are left out, except fr_*
+    for name in "${!selected[@]}"; do
+        if [[ ${name} == fr_* ]] || modinfo -k ${KERNEL_RELEASE} -n ${name} &> /dev/null; then
+            echo ${path[${name}]}
+        fi
+    done | sort
+}
+
+# install the camera stack into updates/framos, overriding the stock modules
+function install_oot_modules() {
+    _preflight || return 1
+    local modules=($(_camera_stack)) ko name
+    if [ ${#modules[@]} = 0 ]; then
+        echo -e "${red}no built modules found; run build_oot_modules first${normal}"
+        return 1
+    fi
+    echo ; echo; echo -e "${yel}checking ${#modules[@]} modules against the stock modules ... ${normal}"
+    python3 ${_script_dir}/modversions.py --install "${modules[@]}" \
+        --our-symvers ${L4T_SOURCE}/nvidia-oot/Module.symvers ${L4T_SOURCE}/hwpm/drivers/tegra/hwpm/Module.symvers \
+        --stock-symvers ${MODULES_DIR}/build/Module.symvers /usr/src/nvidia/*/Module.symvers \
+        --stock-modules-dir ${MODULES_DIR}/updates --exclude-dir ${FRAMOS_MODULES_DIR} || return 1
+
+    echo -e "${yel}out of tree kernel modules install ... ${normal}"
+    sudo rm -rf ${FRAMOS_MODULES_DIR} || return 1
+    sudo mkdir -p ${FRAMOS_MODULES_DIR} || return 1
+    sudo cp "${modules[@]}" ${FRAMOS_MODULES_DIR}/ || return 1
+    {
+        echo "# FRAMOS camera stack, written by build/target_build.sh install_oot_modules"
+        for ko in "${modules[@]}"; do
+            echo "override $(modinfo -F name ${ko}) * updates/framos"
+        done
+    } | sudo tee ${FRAMOS_DEPMOD_CONF} > /dev/null || return 1
+    sudo depmod -a ${KERNEL_RELEASE} || return 1
+
+    for ko in "${modules[@]}"; do
+        name=$(modinfo -F name ${ko})
+        if [[ "$(modinfo -k ${KERNEL_RELEASE} -n ${name})" != ${FRAMOS_MODULES_DIR}/* ]]; then
+            echo -e "${red}${name} does not resolve to ${FRAMOS_MODULES_DIR}${normal}"
+            return 1
+        fi
+    done
+    sudo modprobe --dry-run -S ${KERNEL_RELEASE} fr_imx900 || return 1
+    echo -e "${grn}${#modules[@]} modules installed in ${FRAMOS_MODULES_DIR}; reboot to load them${normal}"
+}
+
+# install the FRAMOS overlays
+function install_dtree() {
+    echo ; echo; echo -e "${yel}device tree overlays install ... ${normal}"
+    sudo mkdir -p ${FRAMOS_DTBO_DIR} || return 1
+    sudo cp ${L4T_SOURCE}/out/dtbo/*.dtbo ${FRAMOS_DTBO_DIR}/ || return 1
+}
+
+# install DTBs & out-of-tree kernel modules
+function install_all() {
+    install_dtree || return 1
+    install_oot_modules || return 1
+}
+
+# remove the FRAMOS modules and overlays; the stock modules are used again
+function uninstall() {
+    sudo rm -rf ${FRAMOS_MODULES_DIR} ${FRAMOS_DEPMOD_CONF} ${FRAMOS_DTBO_DIR} || return 1
+    sudo depmod -a ${KERNEL_RELEASE} || return 1
+    echo -e "${grn}FRAMOS modules and overlays removed; reboot to load the stock modules.${normal}"
+    echo -e "${yel}The FramosCamera entry in /boot/extlinux/extlinux.conf is left in place;"
+    echo -e "select \"primary\" in the boot menu or restore extlinux.conf.jetson-io-backup.${normal}"
+}
+
+
 echo; echo; echo -e "${grn}L4T_SOURCE = ${L4T_SOURCE}"
 echo -e "${grn}KERNEL_RELEASE = ${KERNEL_RELEASE}"
 
@@ -99,6 +197,10 @@ echo; echo "${cyn}C O M M A N D S:"
 echo -e "${red}build_dtree${normal}:	\t\tbuild device tree overlays"
 echo -e "${red}build_oot_modules${normal}:\t\tbuild out-of-tree kernel modules"
 echo -e "${red}build_all${normal}:	\t\tbuild all"
+echo -e "${red}install_dtree${normal}:	\t\tinstall device tree overlays to ${FRAMOS_DTBO_DIR}"
+echo -e "${red}install_oot_modules${normal}:\t\tinstall the camera stack to ${FRAMOS_MODULES_DIR}"
+echo -e "${red}install_all${normal}:	\t\tinstall all"
+echo -e "${red}uninstall${normal}:	\t\tremove the installed modules and overlays"
 echo -e "${red}check${normal}:	\t\t\tcheck the build environment and build all without installing"
 
 echo
