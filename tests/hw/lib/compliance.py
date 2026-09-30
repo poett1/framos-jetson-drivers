@@ -4,6 +4,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from lib.sysinfo import hand_back
+
 # -M: the media device only; -m would also test every interface again
 NODES = {"video": "-d", "subdev": "-u", "media": "-M"}
 BASELINE_DIR = Path(__file__).resolve().parents[1] / "compliance-baselines"
@@ -62,6 +64,7 @@ def write_baseline(path, fails, header):
         lines += [f"{kind}: {name}" for name in sorted(fails[kind])]
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text("\n".join(lines) + "\n")
+    hand_back(Path(path).parent, path)
 
 
 def new_failures(kind, results, baseline, path):

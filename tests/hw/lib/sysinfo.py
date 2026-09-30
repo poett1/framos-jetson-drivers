@@ -1,5 +1,6 @@
 """Facts about the board and the checkout under test."""
 
+import os
 import re
 import subprocess
 
@@ -32,3 +33,16 @@ def install_type(kallsyms, tegra_camera_path):
     if not re.search(r"\bregmap_util_write_table_32\b", kallsyms):
         return "nvidia-stock"
     return "framos-depmod" if "/updates/framos/" in tegra_camera_path else "framos-in-tree"
+
+
+def hand_back(*paths):
+    """Give files written by `sudo pytest` to the user who ran sudo, so the checkout
+    stays usable without root (git pull, rm). No-op when not running under sudo."""
+    uid, gid = os.environ.get("SUDO_UID"), os.environ.get("SUDO_GID")
+    if os.geteuid() != 0 or not uid or not gid:
+        return
+    for path in paths:
+        try:
+            os.chown(path, int(uid), int(gid))
+        except OSError:
+            pass

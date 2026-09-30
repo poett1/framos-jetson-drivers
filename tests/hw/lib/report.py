@@ -4,6 +4,8 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from lib.sysinfo import hand_back
+
 OUTCOMES = {"passed": "PASS", "failed": "FAIL", "skipped": "SKIP",
             "xfailed": "XFAIL", "xpassed": "XPASS", "error": "ERROR"}
 META_FIELDS = (("profile", "Profile"), ("commit", "Commit"), ("l4t", "L4T"),
@@ -46,3 +48,4 @@ def write_results(out_dir, meta, results):
     data = {"meta": meta, "results": [asdict(r) for r in results]}
     (out_dir / "results.json").write_text(json.dumps(data, indent=2, default=str) + "\n")
     (out_dir / "summary.md").write_text(render_markdown(meta, results))
+    hand_back(out_dir.parent, out_dir, out_dir / "results.json", out_dir / "summary.md")
