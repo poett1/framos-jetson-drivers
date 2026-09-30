@@ -7,7 +7,7 @@ from pathlib import Path
 SETTINGS_DIR = Path("/var/nvidia/nvcam/settings")
 CURRENT_RE = re.compile(r"current:\s*([\d.]+)")
 WARMUP_INTERVALS = 4  # fpsdisplaysink reports every 0.5 s: skip the first 2 s
-ARGUS_ERROR_RE = re.compile(r"NitoPath|Could not map module|knobSetId \d+ not found|"
+ARGUS_ERROR_RE = re.compile(r"NitoPath|knobSetId \d+ not found|"
                             r"NvCameraIsp\w* .*error|SCF: Error|\(NvCamV4l2\) Error", re.I)
 
 

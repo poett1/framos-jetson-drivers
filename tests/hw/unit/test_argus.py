@@ -49,3 +49,8 @@ def test_failure_report_has_output_tail_and_daemon_errors():
     assert rep.startswith("no frames")
     assert "ERROR: from element nvarguscamerasrc0" in rep and "line 0\n" not in rep
     assert "nvargus-daemon:\nSCF: Error Timeout: Sending critical error event" in rep
+
+
+def test_badge_mapping_warning_is_not_an_error():
+    # seen with stock Jetpack 6 + .isp override while Argus streams fine
+    assert daemon_errors("NvPclHwGetModuleList: WARNING: Could not map module to ISP config string\n") == []
