@@ -77,9 +77,15 @@ def pytest_generate_tests(metafunc):
             modes = prof[key] if prof else [None]
             metafunc.parametrize(arg, modes, ids=[ident(m) if m else "no-profile" for m in modes])
     if "known_failure" in metafunc.fixturenames:
-        params = compliance.known_failure_params(
-            compliance.read_baseline(compliance.baseline_path(prof["name"]))) if prof else []
-        metafunc.parametrize("known_failure", params, ids=[f"{k}: {n}" for k, n in params])
+        path = compliance.baseline_path(prof["name"]) if prof else None
+        baseline = compliance.read_baseline(path) if prof else None
+        params = [pytest.param(p, id=f"{p[0]}: {p[1]}")
+                  for p in compliance.known_failure_params(baseline)]
+        if not params:
+            reason = ("no --profile given" if not prof else f"no baseline {path}"
+                      if baseline is None else "the baseline lists no accepted failures")
+            params = [pytest.param(None, id="none", marks=pytest.mark.skip(reason=reason))]
+        metafunc.parametrize("known_failure", params)
 
 
 @pytest.fixture(scope="session")
@@ -143,6 +149,20 @@ def compliance_results(sensor):
     return SESSION["compliance"]
 
 
+@pytest.fixture(scope="module")
+def argus_daemon():
+    """Restarts nvargus-daemon; returns a callable giving its log since the restart.
+    Leaves the daemon as it was found (stopped again if it was not running)."""
+    was_active = subprocess.run(["systemctl", "is-active", "--quiet", "nvargus-daemon"]).returncode == 0
+    since = f"@{int(time.time())}"
+    subprocess.run(["systemctl", "restart", "nvargus-daemon"], check=True)
+    time.sleep(2)
+    yield lambda: subprocess.run(["journalctl", "-u", "nvargus-daemon", "--since", since,
+                                  "-o", "cat", "--no-pager"], capture_output=True, text=True).stdout
+    if not was_active:
+        subprocess.run(["systemctl", "stop", "nvargus-daemon"])
+
+
 def pytest_sessionfinish(session):
     if session.config.getoption("--write-compliance-baseline") and SESSION["compliance"]:
         meta = SESSION["meta"]
@@ -166,6 +186,8 @@ def _message(report):
 
 
 def pytest_runtest_logreport(report):
+    if "unit" in report.keywords:
+        return  # hardware report only
     xfail = hasattr(report, "wasxfail")
     if report.when == "call":
         outcome = report.outcome

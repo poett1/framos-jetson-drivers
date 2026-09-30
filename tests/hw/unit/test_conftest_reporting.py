@@ -31,6 +31,10 @@ def suite(pytester):
 
         def test_needs_nito(profile):
             pytest.skip("no imx900_rear_framos.nito")
+
+        @pytest.mark.unit
+        def test_a_unit_test():
+            pass
     """)
     return pytester
 
@@ -40,13 +44,14 @@ def test_known_failure_xfails_and_results_written(suite):
     # "--opt=value": pytest takes a separate existing-path argument as a rootdir candidate
     result = suite.runpytest_subprocess(f"--profile={JP6.name}", f"--results-dir={res_dir}",
                                         "-p", "no:cacheprovider")
-    result.assert_outcomes(passed=1, skipped=1, xfailed=1)
+    result.assert_outcomes(passed=2, skipped=1, xfailed=1)
     data = json.loads((res_dir / "results.json").read_text())
     outcomes = {r["nodeid"].split("::")[-1]: r["outcome"] for r in data["results"]}
     assert outcomes == {"test_defaults_after_boot": "xfailed",
                         "test_frame_rate_64bit_roundtrip": "passed",
                         "test_needs_nito": "skipped"}
     summary = (res_dir / "summary.md").read_text()
+    assert "test_a_unit_test" not in summary   # unit tests stay out of the hardware report
     assert "Profile: nano-p3768-cam1-gmsl-imx900-4lane-jp6" in summary
     assert "| test_frame_rate_64bit_roundtrip | PASS | fps=72.0 |" in summary
     assert "| test_needs_nito | SKIP | no imx900_rear_framos.nito |" in summary
@@ -55,7 +60,7 @@ def test_known_failure_xfails_and_results_written(suite):
 
 def test_without_profile_everything_skips(suite):
     result = suite.runpytest_subprocess("-p", "no:cacheprovider")
-    result.assert_outcomes(skipped=3)
+    result.assert_outcomes(skipped=3, passed=1)
     assert not (suite.path / "results").exists()
 
 

@@ -46,6 +46,8 @@ def test_baseline_workflow(suite):
 
     first = _run(suite, RESULTS, "--write-compliance-baseline")
     first.stdout.fnmatch_lines(["*no baseline*--write-compliance-baseline*"])
+    assert "empty parameter set" not in first.stdout.str()
+    first.stdout.fnmatch_lines(["*test_known_failure*no baseline*"])
     assert baseline.read_text().splitlines()[-2:] == ["media: MEDIA_IOC_G_TOPOLOGY",
                                                       "video: VIDIOC_G/S_PARM"]
 
