@@ -63,6 +63,7 @@ reboot into the configuration a profile describes before running it.
 | `nx-p3768-cam1-direct-imx900-4lane` | Orin NX on p3768, Jetpack 7.2.1 | FPA-A/P22 cam1, direct |
 | `nx-p3768-cam1-gmsl-imx900-4lane` | Orin NX on p3768, Jetpack 7.2.1 | FPA-A/P22 cam1, GMSL3 |
 | `nano-p3768-cam1-gmsl-imx900-4lane-jp6` | Orin Nano Super devkit, Jetpack 6 (FRAMOS l4t-r36.4.4) | FPA-A/P22 cam1, GMSL3 (reference) |
+| `nano-p3768-cam1-direct-imx900-4lane-jp6` | Orin Nano Super devkit, Jetpack 6 (FRAMOS l4t-r36.4.4) | FPA-A/P22 cam1, direct (reference) |
 
 Optional profile keys:
 

@@ -12,7 +12,7 @@ AGX = PROFILE_DIR / "agx-fpa4a-j5-direct-imx900-4lane.yaml"
 
 
 def test_all_shipped_profiles_load():
-    assert len(PROFILES) == 6
+    assert len(PROFILES) == 7
     for p in PROFILES:
         prof = load_profile(p)
         assert prof["name"] == p.stem
