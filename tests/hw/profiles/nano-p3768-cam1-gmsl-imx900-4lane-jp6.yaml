@@ -12,7 +12,7 @@ argus_tuning: isp
 # measured in the reference run of 2026-09-30 (commit a81671d)
 known_failures:
   "test_04_controls.py::test_defaults_after_boot": "l4t-r36.4.4 driver: frame_rate 1500000 and exposure 9 after boot (control minimum, not the DT defaults); fixed for 39.2.1 in 3367073"
-  "test_07_argus.py::test_argus_rate[mode5]": "stock Jetpack 6: Argus delivers 2064x1552 10-bit at 72 fps (frame_rate control at 117000000; raw V4L2 streams the mode at 117)"
+  "test_07_argus.py::test_argus_rate[mode5]": "stock Jetpack 6: Argus delivers 2064x1552 10-bit at 58-72 fps in the reference runs (also with the frame_rate control at 117000000; raw V4L2 streams the mode at 117)"
 
 controls:
   defaults:
