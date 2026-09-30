@@ -13,9 +13,10 @@ argus_tuning: isp
 known_failures:
   "test_04_controls.py::test_defaults_after_boot": "l4t-r36.4.4 driver: frame_rate 1500000 and exposure 9 after boot (control minimum, not the DT defaults); fixed for 39.2.1 in 3367073"
   "test_07_argus.py::test_argus_rate[mode5]": "stock Jetpack 6: Argus delivers 2064x1552 10-bit at about 58 fps also on the direct connection (raw V4L2 streams the mode at 117)"
-flaky:
-  "test_05_v4l2_stream.py::test_stream_rate": "stock Jetpack 6, direct: 7 of 20 stream starts per mode got no frame (VI corr_err, err_data 0x02600062)"
-  "test_06_image.py::test_frame_not_constant": "stock Jetpack 6, direct: 7 of 20 stream starts per mode got no frame (VI corr_err, err_data 0x02600062)"
+# The earlier flex cable lost 7 of 20 stream starts per mode (VI corr_err, err_data
+# 0x02600062); with another cable of the same length 60 of 60 starts worked (2026-09-30).
+# At 2376 Mbps/lane a marginal cable shows up first.
+flaky: {}
 
 controls:
   defaults:
