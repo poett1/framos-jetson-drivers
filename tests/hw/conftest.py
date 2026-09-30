@@ -3,6 +3,8 @@
 Run: sudo python3 -m pytest tests/hw --profile tests/hw/profiles/<name>.yaml
 """
 
+import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -15,7 +17,8 @@ sys.path.insert(0, str(HW_DIR))  # "lib" package; pytest 6.2 has no pythonpath i
 
 from lib.profile import ProfileError, load_profile  # noqa: E402
 from lib.report import TestResult, render_markdown, write_results  # noqa: E402
-from lib.sysinfo import repo_commit  # noqa: E402
+from lib import dt, kmsg, media  # noqa: E402
+from lib.sysinfo import install_type, l4t_release, repo_commit  # noqa: E402
 
 # per-session state; pytest 6.2 has no config.stash
 SESSION = {"profile": None, "meta": {}, "results": [], "results_dir": None}
@@ -76,6 +79,45 @@ def profile():
 def meta():
     """Run facts shown in the summary header; fixtures of later groups add to it."""
     return SESSION["meta"]
+
+
+def _read(path):
+    try:
+        return Path(path).read_text()
+    except OSError:
+        return ""
+
+
+@pytest.fixture(scope="session")
+def board(profile, meta):
+    """Board facts; the L4T release, kernel and install type also go into the summary."""
+    tegra_camera = subprocess.run(["modinfo", "-n", "tegra_camera"], capture_output=True,
+                                  text=True).stdout.strip()
+    facts = {
+        "compatible": dt.read_strlist("/compatible"),
+        "model": dt.read_str("/model"),
+        "l4t": l4t_release(_read("/etc/nv_tegra_release")),
+        "kernel": os.uname().release,
+        "install_type": install_type(_read("/proc/kallsyms"), tegra_camera),
+    }
+    meta.update(l4t=facts["l4t"], kernel=facts["kernel"], install_type=facts["install_type"])
+    return facts
+
+
+@pytest.fixture(scope="session")
+def sensor(profile):
+    """Video, subdev and media nodes of the profile's sensor; skips if it did not probe."""
+    nodes = media.find_sensor_nodes(profile["devname"])
+    if nodes is None:
+        pytest.skip(f"sensor not probed: {profile['devname']} not in any media graph")
+    return nodes
+
+
+@pytest.fixture
+def dmesg_mark():
+    """Returns a callable giving the CSI/PHY/RCE errors logged since the test started."""
+    before = kmsg.kernel_log()
+    return lambda: kmsg.new_errors(before, kmsg.kernel_log())
 
 
 def _message(report):

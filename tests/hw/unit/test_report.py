@@ -45,3 +45,9 @@ def test_repo_commit_clean_and_dirty(tmp_path):
 
 def test_repo_commit_of_this_checkout():          # Review Focus 1 when run via sudo
     assert repo_commit(Path(__file__).parents[3]) != "unknown"
+
+
+def test_failed_row_shows_properties_and_message():
+    md = render_markdown({}, [TestResult("t.py::test_c", "failed", 0.1, {"install_type": "nvidia-stock"},
+                                         "AssertionError: stock camera core\nmore")])
+    assert "| test_c | FAIL | install_type=nvidia-stock; AssertionError: stock camera core |" in md

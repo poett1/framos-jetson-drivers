@@ -22,9 +22,12 @@ class TestResult:
 
 
 def _details(result):
+    parts = []
     if result.properties:
-        return ", ".join(f"{k}={v}" for k, v in result.properties.items())
-    return result.message.strip().splitlines()[0] if result.message.strip() else ""
+        parts.append(", ".join(f"{k}={v}" for k, v in result.properties.items()))
+    if result.message.strip() and (result.outcome != "passed" or not parts):
+        parts.append(result.message.strip().splitlines()[0])
+    return "; ".join(parts)
 
 
 def render_markdown(meta, results):

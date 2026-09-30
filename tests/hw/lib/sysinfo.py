@@ -1,5 +1,6 @@
 """Facts about the board and the checkout under test."""
 
+import re
 import subprocess
 
 
@@ -16,3 +17,18 @@ def repo_commit(repo):
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
     return commit + ("-dirty" if dirty else "")
+
+
+def l4t_release(text):
+    """ "# R39 (release), REVISION: 2.1, ..." (/etc/nv_tegra_release) -> "39.2.1" """
+    m = re.search(r"# R(\d+) \(release\), REVISION: ([\d.]+)", text)
+    return f"{m.group(1)}.{m.group(2)}" if m else "unknown"
+
+
+def install_type(kallsyms, tegra_camera_path):
+    """How the camera core got there: "framos-depmod" (target_build.sh install into
+    updates/framos), "framos-in-tree" (FRAMOS camera core elsewhere, e.g. Yocto or
+    Jetpack 6 modules_install) or "nvidia-stock" (no FRAMOS camera core loaded)."""
+    if not re.search(r"\bregmap_util_write_table_32\b", kallsyms):
+        return "nvidia-stock"
+    return "framos-depmod" if "/updates/framos/" in tegra_camera_path else "framos-in-tree"
