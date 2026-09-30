@@ -25,3 +25,14 @@ l4t-r39.2.1 community port (2026-09-28)
         - V4L2 controls start at their minimum (1.5 fps) until set
       see TEST-RESULTS-l4t-r39.2.1.md
     - fr_imx900: controls start at their DT defaults (72 fps / 10 ms) instead of the minimum
+    - stock Jetpack 7.2.1 (2026-09-30):
+        - on-target build: NVIDIA's 39.2.1 top-level OOT Makefile,
+          build/target_build.sh rewritten (build, check, install, uninstall)
+        - install of the camera stack into updates/framos with a depmod
+          override and a symbol CRC check; stock packages untouched
+        - jetson-config-camera tools: Jetpack 7 jetson-io, separate
+          FramosCamera boot entry, Orin Nano/NX header name
+        - tests/hw: pytest hardware test suite with per-board profiles
+          (AGX Orin FPA-4.A/AGX J5 direct; Orin Nano/NX cam1 direct and GMSL3;
+          Orin Nano Jetpack 6 reference)
+        - built and installed on AGX Orin; hardware tests pending

@@ -24,10 +24,63 @@ supports AGX Thor only.
   not work yet:** Jetpack 7.2 requires a NITO tuning file for the IMX900, and
   V4L2 controls are 64-bit (use `v4l2-ctl`, not `v4l2src extra-controls`). See
   [TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md).
-- `isp/`, `tools/`, `firmware/` and `build/` are carried unchanged from
-  l4t-r36.4.4. The ISP override files are the Jetpack 6 ones (there are no
-  .nito files for Jetpack 7), and the target/cross-compile scripts have not
-  been adapted to 39.2.1. The procedure below still describes Jetpack 6.
+- **Stock Jetpack 7.2.1** (Ubuntu 24.04, kernel `6.8.12-1021-tegra`): the
+  drivers build and install on the Jetson itself with `build/target_build.sh`
+  (next section). Built and installed on an AGX Orin devkit on 2026-09-30;
+  the hardware test with the FPA-4.A/AGX is pending.
+- `tools/jetson-config-camera(-cli).py` work with the Jetpack 7 jetson-io and
+  write a separate `FramosCamera` boot entry.
+- `tests/hw/`: pytest suite for testing a camera setup on the Jetson, see
+  [tests/hw/README.md](tests/hw/README.md).
+- `isp/` and `firmware/` are carried unchanged from l4t-r36.4.4. The ISP
+  override files are the Jetpack 6 ones (Jetpack 7.2 needs .nito files), and
+  `build/cross-compile_build.sh` has not been adapted to 39.2.1.
+
+## Build and install on stock Jetpack 7.2.1
+
+On the Jetson, with this branch checked out:
+
+```
+sudo apt-get install build-essential device-tree-compiler \
+    nvidia-l4t-kernel-headers nvidia-l4t-kernel-oot-headers
+source build/target_build.sh      # prints the commands below
+check                             # build all modules and overlays (about 3 min on AGX Orin)
+install_all                       # install overlays and camera stack (sudo)
+```
+
+| Command | Does |
+|---|---|
+| `build_oot_modules`, `build_dtree`, `build_all` | build the OOT modules (NVIDIA's 39.2.1 top-level `source/Makefile`), the FRAMOS overlays, or both |
+| `check` | refuses to build for a kernel other than the running one, then `build_all` |
+| `install_dtree` | overlays to `/boot/framos/dtbo/` |
+| `install_oot_modules` | the `fr_*` modules, `tegra-camera` and every stock module that depends on them (42 modules) to `/lib/modules/<kernel>/updates/framos/`, with `/etc/depmod.d/framos.conf` overriding the stock ones; first checks the symbol CRCs against the stock modules |
+| `install_all` | both installs |
+| `uninstall` | removes both; after a reboot the stock modules are used again |
+
+The stock `.deb` files are not modified, so `apt upgrade` does not undo the
+install; a kernel update needs a rebuild. The build warns that the compiler
+(gcc 13.3) differs from the kernel's (gcc 13.2); that is expected with the
+Ubuntu 24.04 toolchain.
+
+Then select the camera configuration and reboot:
+
+```
+sudo python3 tools/jetson-config-camera-cli.py -n "Framos FPA-4.A/AGX" "Framos IMX900-J5-4Lane"
+sudo python3 tools/jetson-config-camera.py      # interactive alternative
+```
+
+Both write a boot entry `FramosCamera` into `/boot/extlinux/extlinux.conf`
+and make it the default. The stock `primary` entry is left unchanged and can
+be picked in the boot menu.
+
+For Argus, Jetpack 7.2 needs a NITO tuning file named after the camera
+module's badge in `/var/nvidia/nvcam/settings/`, for example
+`imx900_rear_framos.nito` (Orin Nano/NX cam1) or
+`imx900_bottomleft_framos.nito` (AGX Orin FPA-4.A/AGX J5). NVIDIA's "Jetson
+Customer IQ Migration Tools" (camera hotfix, `nvcfg2nito`) convert a Jetpack 6
+`.isp` override into a NITO file; they are not part of this repository.
+
+The procedure further below describes Jetpack 6.
 
 
 # Short procedure
