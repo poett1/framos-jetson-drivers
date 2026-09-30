@@ -41,13 +41,14 @@ def parse_topology(text):
 
 
 def topology_ok(entities, devname):
-    """vi-output, <devname> <- nvcsi* <- <devname>, all links enabled."""
+    """vi-output, <devname> <- *nvcsi* <- <devname>, all links enabled. The CSI entity
+    is "nvcsi--1" on Jetpack 7 and "13e00000.host1x:nvcsi@15a00000-" on Jetpack 6."""
     vi = entities.get(f"vi-output, {devname}")
     if vi is None:
         return False
     for name in vi.upstream:
         csi = entities.get(name)
-        if name.startswith("nvcsi") and csi is not None and devname in csi.upstream:
+        if "nvcsi" in name and csi is not None and devname in csi.upstream:
             return True
     return False
 

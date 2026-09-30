@@ -62,4 +62,4 @@ def test_bad_argus_tuning_rejected(tmp_path):
 def test_jp6_reference_profile():
     prof = load_profile(PROFILE_DIR / "nano-p3768-cam1-gmsl-imx900-4lane-jp6.yaml")
     assert prof["argus_tuning"] == "isp"
-    assert prof["known_failures"] == {}
+    assert "test_04_controls.py::test_defaults_after_boot" in prof["known_failures"]

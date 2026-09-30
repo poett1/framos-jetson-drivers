@@ -33,3 +33,13 @@ def parse_fps(text):
 
 def daemon_errors(log):
     return [line.strip() for line in log.splitlines() if ARGUS_ERROR_RE.search(line)]
+
+
+def failure_report(summary, output, errors, lines=30):
+    """Summary, the last lines of the gst-launch output (stdout and stderr) and the
+    nvargus-daemon errors, for an assertion message."""
+    tail = "\n".join(output.strip().splitlines()[-lines:])
+    report = f"{summary}\n--- gst-launch-1.0 (last {lines} lines):\n{tail}"
+    if errors:
+        report += "\n--- nvargus-daemon:\n" + "\n".join(errors[:20])
+    return report

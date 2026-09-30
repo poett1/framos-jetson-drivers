@@ -31,3 +31,12 @@ def test_tuning_file(tmp_path):
     assert tuning_file(prof, tmp_path) == tmp_path / "imx900_rear_framos.nito"
     prof["argus_tuning"] = "isp"
     assert tuning_file(prof, tmp_path) == tmp_path / "camera_overrides.isp"
+
+
+def test_failure_report_has_output_tail_and_daemon_errors():
+    from lib.argus import failure_report
+    out = "\n".join(f"line {i}" for i in range(100)) + "\nERROR: from element nvarguscamerasrc0\n"
+    rep = failure_report("no frames", out, ["SCF: Error Timeout: Sending critical error event"])
+    assert rep.startswith("no frames")
+    assert "ERROR: from element nvarguscamerasrc0" in rep and "line 0\n" not in rep
+    assert "nvargus-daemon:\nSCF: Error Timeout: Sending critical error event" in rep

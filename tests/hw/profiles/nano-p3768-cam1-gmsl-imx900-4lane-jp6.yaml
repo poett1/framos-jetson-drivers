@@ -9,7 +9,9 @@ devname: "imx900 9-001a"
 badge: imx900_rear_framos
 modules: [fr_imx900, fr_common, fr_max96792, fr_max96793]
 argus_tuning: isp
-known_failures: {}   # filled from the reference run's findings, not assumed
+# measured in the reference run of 2026-09-30 (commit a81671d)
+known_failures:
+  "test_04_controls.py::test_defaults_after_boot": "l4t-r36.4.4 driver: frame_rate 1500000 and exposure 9 after boot (control minimum, not the DT defaults); fixed for 39.2.1 in 3367073"
 
 controls:
   defaults:
