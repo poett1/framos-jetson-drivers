@@ -1,0 +1,25 @@
+# Orin NX on the p3768 devkit carrier, IMX900 over GMSL3 via FPA-A/P22 cam1, 4 lanes, stock Jetpack 7.2.1. Overlays: fr_fpa_a_p22, fr_imx900-cam1-4lane, fr_cam1-gmsl
+name: nx-p3768-cam1-gmsl-imx900-4lane
+dt_model: NVIDIA Jetson Orin Nano/NX Developer Kit (p3768)
+dt_compatible: ["nvidia,p3768-0000+p3767-0000", "nvidia,p3768-0000+p3767-0000-super", "nvidia,p3768-0000+p3767-0001", "nvidia,p3768-0000+p3767-0001-super"]
+gmsl: true
+sensor_dt_path: "/bus@0/cam_i2cmux/i2c@1/imx900_c@1a"
+devname: "imx900 9-001a"
+badge: imx900_rear_framos
+modules: [fr_imx900, fr_common, fr_max96792, fr_max96793]
+argus_tuning: nito
+
+controls:
+  defaults:
+    frame_rate: 72000000
+    exposure: 10000
+    gain: 0
+
+v4l2_modes:
+  - {name: 12-bit full, pixelformat: RG12, width: 2064, height: 1552, max_fps: 72.0}
+  - {name: 10-bit full, pixelformat: RG10, width: 2064, height: 1552, max_fps: 117.0}
+  - {name: 8-bit full, pixelformat: RGGB, width: 2064, height: 1552, max_fps: 125.0}
+
+argus_modes:
+  - {sensor_mode: 0, width: 2064, height: 1552, max_fps: 72.0}
+  - {sensor_mode: 5, width: 2064, height: 1552, max_fps: 117.0}

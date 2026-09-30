@@ -1,0 +1,26 @@
+# AGX Orin devkit, IMX900 directly on FPA-4.A/AGX J5, 4 lanes, stock Jetpack 7.2.1
+# Overlays: fr_fpa_4a_agx, fr_imx900-j5-4lane
+name: agx-fpa4a-j5-direct-imx900-4lane
+dt_model: NVIDIA Jetson AGX Orin Developer Kit
+dt_compatible: ["nvidia,p3737-0000+p3701-0005"]
+gmsl: false
+sensor_dt_path: "/bus@0/i2c@3180000/tca9548@70/i2c@0/imx900_a@1a"
+devname: "imx900 9-001a"
+badge: imx900_bottomleft_framos
+modules: [fr_imx900, fr_common]
+argus_tuning: nito
+
+controls:
+  defaults:
+    frame_rate: 72000000
+    exposure: 10000
+    gain: 0
+
+v4l2_modes:
+  - {name: 12-bit full, pixelformat: RG12, width: 2064, height: 1552, max_fps: 72.0}
+  - {name: 10-bit full, pixelformat: RG10, width: 2064, height: 1552, max_fps: 117.0}
+  - {name: 8-bit full, pixelformat: RGGB, width: 2064, height: 1552, max_fps: 125.0}
+
+argus_modes:
+  - {sensor_mode: 0, width: 2064, height: 1552, max_fps: 72.0}
+  - {sensor_mode: 5, width: 2064, height: 1552, max_fps: 117.0}
