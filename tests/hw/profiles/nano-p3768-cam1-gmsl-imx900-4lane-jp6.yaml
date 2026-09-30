@@ -1,4 +1,5 @@
-# Reference run: Orin Nano Super devkit on Jetpack 6 (L4T 36.4.4) with the FRAMOS l4t-r36.4.4 driver, IMX900 over GMSL3 via FPA-A/P22 cam1, 4 lanes. Argus uses the .isp override (camera_overrides.isp) on Jetpack 6.
+# Reference run: Orin Nano Super devkit on stock Jetpack 6.2.1 (L4T 36.4.4) with FRAMOS' official
+# l4t-r36.4.4 driver (framosimaging/framos-jetson-drivers), installed per the FRAMOS wiki; IMX900 over GMSL3 via FPA-A/P22 cam1, 4 lanes. Argus uses the .isp override (camera_overrides.isp) on Jetpack 6.
 name: nano-p3768-cam1-gmsl-imx900-4lane-jp6
 dt_model: NVIDIA Jetson Orin Nano/NX Developer Kit (p3768)
 dt_compatible: ["nvidia,p3768-0000+p3767-0005-super", "nvidia,p3768-0000+p3767-0005"]
@@ -8,8 +9,7 @@ devname: "imx900 9-001a"
 badge: imx900_rear_framos
 modules: [fr_imx900, fr_common, fr_max96792, fr_max96793]
 argus_tuning: isp
-known_failures:
-  "test_04_controls.py::test_defaults_after_boot": "l4t-r36.4.4 driver starts the controls at their minimum (fixed in 3367073 for 39.2.1)"
+known_failures: {}   # filled from the reference run's findings, not assumed
 
 controls:
   defaults:

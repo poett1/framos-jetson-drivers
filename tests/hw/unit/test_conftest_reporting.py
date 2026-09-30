@@ -16,7 +16,10 @@ def suite(pytester):
     for name in ("conftest.py", "pytest.ini"):
         shutil.copy(HW_DIR / name, pytester.path / name)
     shutil.copytree(HW_DIR / "lib", pytester.path / "lib")
-    shutil.copy(JP6, pytester.path / JP6.name)
+    # the JP6 reference profile plus one declared known failure
+    (pytester.path / JP6.name).write_text(JP6.read_text().replace(
+        "known_failures: {}",
+        'known_failures: {"test_04_controls.py::test_defaults_after_boot": "starts at minimum"}'))
     pytester.makepyfile(test_04_controls="""
         import pytest
 
