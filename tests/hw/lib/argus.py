@@ -1,10 +1,12 @@
 """Argus capture through nvarguscamerasrc, and the nvargus-daemon log."""
 
 import re
+import statistics
 from pathlib import Path
 
 SETTINGS_DIR = Path("/var/nvidia/nvcam/settings")
-FPS_RE = re.compile(r"average:\s*([\d.]+)")
+CURRENT_RE = re.compile(r"current:\s*([\d.]+)")
+WARMUP_INTERVALS = 4  # fpsdisplaysink reports every 0.5 s: skip the first 2 s
 ARGUS_ERROR_RE = re.compile(r"NitoPath|Could not map module|knobSetId \d+ not found|"
                             r"NvCameraIsp\w* .*error|SCF: Error|\(NvCamV4l2\) Error", re.I)
 
@@ -17,7 +19,9 @@ def tuning_file(profile, settings_dir=SETTINGS_DIR):
     return Path(settings_dir) / "camera_overrides.isp"
 
 
-def pipeline(mode, sensor_id=0, buffers=400):
+def pipeline(mode, sensor_id=0, seconds=6):
+    """gst-launch-1.0 command streaming about `seconds` at the mode's rate."""
+    buffers = max(400, round(mode["max_fps"] * seconds))
     caps = (f"video/x-raw(memory:NVMM),width={mode['width']},height={mode['height']},"
             f"framerate={round(mode['max_fps'])}/1")
     return ["gst-launch-1.0", "-v", "nvarguscamerasrc", f"sensor-id={sensor_id}",
@@ -26,9 +30,14 @@ def pipeline(mode, sensor_id=0, buffers=400):
 
 
 def parse_fps(text):
-    """Last average rate reported by fpsdisplaysink, None if there is none."""
-    values = FPS_RE.findall(text)
-    return float(values[-1]) if values else None
+    """Frame rate from fpsdisplaysink: median of the per-interval "current" rates after
+    a 2 s warm-up (the cumulative "average" includes the startup burst). None if there
+    is no report."""
+    values = [float(v) for v in CURRENT_RE.findall(text)]
+    if not values:
+        return None
+    steady = values[WARMUP_INTERVALS:]
+    return statistics.median(steady if len(steady) >= 3 else values)
 
 
 def daemon_errors(log):

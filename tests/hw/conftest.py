@@ -149,9 +149,10 @@ def compliance_results(sensor):
     return SESSION["compliance"]
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def argus_daemon():
-    """Restarts nvargus-daemon; returns a callable giving its log since the restart.
+    """Restarts nvargus-daemon for each test (a failed capture session can leave it
+    unusable); returns a callable giving its log since the restart.
     Leaves the daemon as it was found (stopped again if it was not running)."""
     was_active = subprocess.run(["systemctl", "is-active", "--quiet", "nvargus-daemon"]).returncode == 0
     since = f"@{int(time.time())}"
