@@ -51,3 +51,24 @@ def test_24pin_alias_present():
     names = [h.name for h in header_defs()]
     assert "Jetson 24pin CSI Connector" in names
     assert "Jetson AGX CSI Connector" in names
+
+
+def test_remove_boot_entry_restores_stock(tmp_path):
+    from framos_jetsonio import remove_boot_entry
+    f = tmp_path / "extlinux.conf"
+    f.write_text(STOCK + "\n# When testing a custom kernel, ...\n")
+    write_boot_entry(str(f), "/boot/dtb/k.dtb", ["a.dtbo"], "FRAMOS camera")
+    remove_boot_entry(str(f))
+    s = f.read_text()
+    assert "FramosCamera" not in s and "a.dtbo" not in s
+    assert "DEFAULT primary" in s
+    assert "MENU LABEL primary kernel" in s and "APPEND ${cbootargs} root=PARTUUID=x rw" in s
+    assert "# When testing a custom kernel" in s
+
+
+def test_remove_boot_entry_without_entry_changes_nothing(tmp_path):
+    from framos_jetsonio import remove_boot_entry
+    f = tmp_path / "extlinux.conf"
+    f.write_text(STOCK)
+    remove_boot_entry(str(f))
+    assert f.read_text() == STOCK

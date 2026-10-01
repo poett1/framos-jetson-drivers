@@ -6,10 +6,13 @@
 #  - header_defs(): jetson-io header definitions plus "Jetson 24pin CSI Connector",
 #    the header name of the p3767 FRAMOS overlays, which Jetpack 7 no longer defines
 #  - write_boot_entry(): separate FramosCamera extlinux entry, the stock "primary"
-#    entry stays as fallback
+#    entry stays as fallback; remove_boot_entry() takes it out again
+#
+# Command line: framos_jetsonio.py remove-boot-entry [extlinux.conf]
 
 import copy
 import os
+import re
 import sys
 
 sys.path.insert(1, "/opt/nvidia/jetson-io")
@@ -48,3 +51,47 @@ def write_boot_entry(extlinux_path, dtb, dtbos, menu_label):
     sig = extlinux_path + ".sig"
     if os.path.exists(sig):
         os.rename(sig, sig + ".jetson-io-backup")
+
+
+# keywords of an extlinux entry's body, as in jetson-io's Linux/extlinux.py
+_ENTRY_KEYWORDS = ("APPEND", "FDT", "FDTDIR", "INITRD", "LINUX", "MENU", "OVERLAYS")
+
+
+def remove_boot_entry(extlinux_path):
+    """Remove the FramosCamera entry; if it was the default, make "primary" (or the first
+    remaining entry) the default again. No change if there is no such entry."""
+    with open(extlinux_path) as f:
+        lines = f.readlines()
+    out, labels, skipping = [], [], False
+    for line in lines:
+        words = line.split()
+        if words[:1] == ["LABEL"]:
+            skipping = len(words) > 1 and words[1] == BOOT_LABEL
+            if not skipping:
+                labels.append(words[1] if len(words) > 1 else "")
+        elif skipping and (not words or words[0] in _ENTRY_KEYWORDS):
+            continue
+        else:
+            skipping = False
+        if not skipping:
+            out.append(line)
+    if len(out) == len(lines):
+        return
+    default = "primary" if "primary" in labels else (labels[0] if labels else None)
+    if default:
+        out = [re.sub(r"^DEFAULT\s+%s\s*$" % BOOT_LABEL, "DEFAULT %s" % default, l)
+               if l.startswith("DEFAULT") else l for l in out]
+        out = [l if not l.startswith("DEFAULT") or l.endswith("\n") else l + "\n" for l in out]
+    while out and not out[-1].strip():
+        out.pop()
+    with open(extlinux_path, "w") as f:
+        f.writelines(out)
+        if out and not out[-1].endswith("\n"):
+            f.write("\n")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) >= 2 and sys.argv[1] == "remove-boot-entry":
+        remove_boot_entry(sys.argv[2] if len(sys.argv) > 2 else "/boot/extlinux/extlinux.conf")
+    else:
+        sys.exit("usage: framos_jetsonio.py remove-boot-entry [extlinux.conf]")

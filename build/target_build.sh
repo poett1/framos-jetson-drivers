@@ -238,13 +238,12 @@ function install_all() {
     install_oot_modules || return 1
 }
 
-# remove the FRAMOS modules and overlays; the stock modules are used again
+# remove the FRAMOS modules, overlays and boot entry; the stock setup is used again
 function uninstall() {
+    sudo python3 ${_script_dir}/../tools/framos_jetsonio.py remove-boot-entry /boot/extlinux/extlinux.conf || return 1
     sudo rm -rf ${FRAMOS_MODULES_DIR} ${FRAMOS_DEPMOD_CONF} ${FRAMOS_DTBO_DIR} || return 1
     sudo depmod -a ${KERNEL_RELEASE} || return 1
-    echo -e "${grn}FRAMOS modules and overlays removed; reboot to load the stock modules.${normal}"
-    echo -e "${yel}The FramosCamera entry in /boot/extlinux/extlinux.conf is left in place;"
-    echo -e "select \"primary\" in the boot menu or restore extlinux.conf.jetson-io-backup.${normal}"
+    echo -e "${grn}FRAMOS modules, overlays and the FramosCamera boot entry removed; reboot to use the stock setup.${normal}"
 }
 
 
