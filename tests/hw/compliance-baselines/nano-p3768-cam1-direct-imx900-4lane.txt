@@ -1,0 +1,7 @@
+# v4l2-compliance failures accepted for nano-p3768-cam1-direct-imx900-4lane
+# written 2026-10-01 09:56:04 from commit 87b8734, L4T 39.2.1 (stock Jetpack 7.2.1, v4l2-compliance 1.26.1)
+
+media: MEDIA_IOC_ENUM_ENTITIES/LINKS  # NVIDIA VI media graph: num_data_links != num_links
+media: MEDIA_IOC_G_TOPOLOGY  # NVIDIA nvcsi entity has an invalid entity function (subtype Unknown)
+subdev: VIDIOC_(UN)SUBSCRIBE_EVENT/DQEVENT  # tegracam subdev (NVIDIA camera framework) has no control events
+video: MC information (see 'Media Driver Info' above)  # nvcsi entity function 0x0002000a "Unknown sub-device"; v4l2-compliance 1.22 (Jetpack 6) reports it without FAIL
