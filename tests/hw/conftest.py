@@ -161,16 +161,19 @@ def compliance_results(sensor):
 
 
 @pytest.fixture
-def argus_daemon():
+def argus_daemon(sensor):
     """Restarts nvargus-daemon for each test (a failed capture session can leave it
     unusable); returns a callable giving its log since the restart.
-    Leaves the daemon as it was found (stopped again if it was not running)."""
+    Leaves the daemon as it was found (stopped again if it was not running), and
+    sets bypass_mode back to 0: Argus leaves it at 1, after which raw V4L2 streams
+    get no frames."""
     was_active = subprocess.run(["systemctl", "is-active", "--quiet", "nvargus-daemon"]).returncode == 0
     since = f"@{int(time.time())}"
     subprocess.run(["systemctl", "restart", "nvargus-daemon"], check=True)
     time.sleep(2)
     yield lambda: subprocess.run(["journalctl", "-u", "nvargus-daemon", "--since", since,
                                   "-o", "cat", "--no-pager"], capture_output=True, text=True).stdout
+    v4l2.set_ctrl(sensor.video, "bypass_mode", 0)
     if not was_active:
         subprocess.run(["systemctl", "stop", "nvargus-daemon"])
 
