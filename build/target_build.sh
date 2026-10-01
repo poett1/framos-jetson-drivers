@@ -50,6 +50,7 @@ function build_oot_modules() {
     _preflight || return 1
     echo ; echo; echo -e "${yel}start out of tree kernel modules build ... ${normal}"
     make -C ${L4T_SOURCE} modules KERNEL_HEADERS=/lib/modules/${KERNEL_RELEASE}/build || return 1
+    _write_build_stamp || return 1
 }
 
 # build FRAMOS device tree overlays
@@ -95,6 +96,40 @@ export MODULES_DIR=/lib/modules/${KERNEL_RELEASE}
 export FRAMOS_MODULES_DIR=${MODULES_DIR}/updates/framos
 export FRAMOS_DEPMOD_CONF=/etc/depmod.d/framos.conf
 export FRAMOS_DTBO_DIR=/boot/framos/dtbo
+# the stock symbol versions a build is made against; their checksums are the build stamp
+export STOCK_SYMVERS=${STOCK_SYMVERS:-"${MODULES_DIR}/build/Module.symvers $(ls /usr/src/nvidia/*/Module.symvers 2> /dev/null | tr '\n' ' ')"}
+export BUILD_STAMP=${BUILD_STAMP:-${L4T_SOURCE}/out/build-stamp}
+
+# record which kernel headers the modules were built against
+function _write_build_stamp() {
+    mkdir -p "$(dirname ${BUILD_STAMP})" || return 1
+    sha256sum ${STOCK_SYMVERS} > ${BUILD_STAMP} || return 1
+}
+
+# refuse modules built against other headers (an updated nvidia-l4t-kernel* package
+# often keeps the same "uname -r")
+function _check_build_stamp() {
+    if [ ! -f "${BUILD_STAMP}" ]; then
+        echo -e "${red}no build stamp ${BUILD_STAMP}: run check first${normal}"
+        return 1
+    fi
+    if ! sha256sum --status -c ${BUILD_STAMP} 2> /dev/null; then
+        echo -e "${red}the modules were built against other kernel headers than the installed ones: run check again${normal}"
+        return 1
+    fi
+}
+
+# refuse modules built for another kernel release
+function _check_vermagic() {
+    local ko vermagic
+    for ko in "$@"; do
+        vermagic=$(modinfo -F vermagic ${ko} | cut -d" " -f1)
+        if [ "${vermagic}" != "${KERNEL_RELEASE}" ]; then
+            echo -e "${red}$(basename ${ko}) was built for ${vermagic}, the kernel is ${KERNEL_RELEASE}: run check again${normal}"
+            return 1
+        fi
+    done
+}
 
 # print the built modules to install: fr_*, tegra-camera, and every built module
 # that depends on one of them, directly or indirectly (the camera-core changes
@@ -146,6 +181,8 @@ function install_oot_modules() {
         echo -e "${red}no built modules found; run build_oot_modules first${normal}"
         return 1
     fi
+    _check_build_stamp || return 1
+    _check_vermagic "${modules[@]}" || return 1
     echo ; echo; echo -e "${yel}checking ${#modules[@]} modules against the stock modules ... ${normal}"
     python3 ${_script_dir}/modversions.py --install "${modules[@]}" \
         --our-symvers ${L4T_SOURCE}/nvidia-oot/Module.symvers ${L4T_SOURCE}/hwpm/drivers/tegra/hwpm/Module.symvers \
