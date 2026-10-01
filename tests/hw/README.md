@@ -105,6 +105,12 @@ baseline). Add a `# reason` to every line, say whether it is an NVIDIA VI
 limitation or a FRAMOS driver issue, review, and commit. The video and subdev
 nodes are tested with `-d`/`-u`, the media device with `-M` (media device only).
 
+## Run on a freshly booted board
+
+The suite expects the camera as the boot left it: `controls` checks the
+values right after boot, and after standalone `v4l2-compliance` runs a
+reboot was needed before raw V4L2 streamed again.
+
 ## Boot-state test
 
 `controls` checks the control values right after boot. A second full run

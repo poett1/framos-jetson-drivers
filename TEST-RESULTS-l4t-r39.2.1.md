@@ -1,5 +1,136 @@
 # Test results: l4t-r39.2.1 on Jetson Orin Nano
 
+Two hardware tests of this branch on an Orin Nano devkit Super:
+
+- **2026-10-01, stock Jetpack 7.2.1**, built and installed on the Jetson with
+  `build/target_build.sh`, IMX900 directly on FPA-A/P22 and over GMSL3, checked
+  with the `tests/hw` suite against a Jetpack 6 reference (next section);
+- **2026-09-28, Yocto image** (OE4T meta-tegra), IMX900 over GMSL3 (further
+  below).
+
+# Stock Jetpack 7.2.1, 2026-10-01
+
+## Summary
+
+| Area | Direct (FPA-A/P22 cam1) | GMSL3 (FPA-A/P22 cam1) |
+|---|---|---|
+| Build on the Jetson, install (42 modules into `updates/framos`) | ✅ 199 modules (24 `fr_*`), 192 overlays, 5 min 50 s | same install |
+| Probe, device tree, media graph | ✅ | ✅ |
+| Controls right after boot | ✅ 72 fps / 10 ms / gain 0 | ✅ same |
+| Raw V4L2, 2064x1552 12/10/8-bit at maximum rate | ✅ 72.03 / 117.03 / 125.03 fps, no gaps, no CSI errors | ✅ same |
+| Argus with `imx900_rear_framos.nito`, mode 0 (12-bit) | ✅ 72 fps | ✅ 72 fps |
+| Argus mode 5 (10-bit, 117 fps) | ⚠ 58.5 fps, as on Jetpack 6 (finding 3) | ⚠ same |
+| v4l2-compliance | ✅ 4 accepted NVIDIA failures (baseline) | ✅ same |
+| `tests/hw` suite, fresh boot | ✅ all pass except Argus mode 5 | ✅ 80 passed, 5 expected failures |
+
+## Setup
+
+- **Board:** Orin Nano Engineering Reference Developer Kit Super (p3768 +
+  p3767-0005).
+- **Software:** stock Jetpack 7.2.1, L4T R39.2.1 (GCID 46758480), kernel
+  `6.8.12-1021-tegra`, flashed with SDK Manager. This branch built and
+  installed on the Jetson: `source build/target_build.sh; check; install_all`,
+  then `tools/jetson-config-camera-cli.py`.
+- **Camera:** color IMX900 on the FPA-A/P22, cam1, 4 lanes; directly
+  (overlays `fr_fpa_a_p22`, `fr_imx900-cam1-4lane`) and over GMSL3 (MAX96793
+  serializer at 0x42, MAX96792 deserializer at 0x6a, plus `fr_cam1-gmsl`).
+- **NITO:** `isp/imx900_rear_framos.nito` installed as
+  `/var/nvidia/nvcam/settings/imx900_rear_framos.nito`. Argus finds it by the
+  badge and uses its knobsets 0 and 5 (sensor modes 0 and 5).
+- **Tests:** `sudo python3 -m pytest tests/hw --profile=tests/hw/profiles/nano-p3768-cam1-{direct,gmsl}-imx900-4lane.yaml`
+  on a freshly booted board; profiles and compliance baselines are in the
+  repository.
+
+## Jetpack 6 reference
+
+The same board, sensor and suite on stock Jetpack 6.2.1 (L4T 36.4.4) with
+FRAMOS' official l4t-r36.4.4 driver, installed per the FRAMOS wiki, Argus with
+`IMX900_IRC650.isp` as `camera_overrides.isp`. Profiles
+`nano-p3768-cam1-{gmsl,direct}-imx900-4lane-jp6`.
+
+| Check | Jetpack 6 + l4t-r36.4.4 | Jetpack 7.2.1 + this branch |
+|---|---|---|
+| Probe, device tree, media graph | ✅ | ✅ |
+| Controls right after boot | ❌ 1.5 fps / 9 µs (control minimum) | ✅ 72 fps / 10 ms (fixed in 3367073) |
+| Raw V4L2 12/10/8-bit | 72.03 / 117.03 / 125.03 fps | 72.03 / 117.03 / 125.03 fps |
+| Argus mode 0 / mode 5 | 72 / 58–72 fps | 72 / 58.5 fps |
+| v4l2-compliance | 3 accepted failures | the same 3 + 1 (finding 4) |
+
+## Findings
+
+### 1. The depmod override has to name the module file (fixed)
+
+kmod 31 (Ubuntu 24.04) matches an `override` line against the module's file
+name. `override tegra_camera` did not apply to `tegra-camera.ko`; the six stock
+modules with a dash in their name then resolved to whichever `updates/`
+subdirectory depmod read first: `updates/framos` on the AGX Orin, the stock
+directory on the Orin Nano, where the install's own check stopped it.
+`target_build.sh` writes the file names since 87b8734.
+
+### 2. v4l2-compliance leaves the sensor in slave mode
+
+`v4l2-compliance -u` sets the FRAMOS menu controls to test values and does not
+restore them: `operation_mode` = Slave Mode, `data_rate` = 594 Mbps/lane,
+`test_pattern` = color bars. In slave mode the IMX900 waits for external sync
+and sends no frames. The suite restores all writable controls after
+v4l2-compliance and runs it last. After standalone v4l2-compliance runs, a
+reboot was needed before raw V4L2 streamed again (seen on Jetpack 6, with the
+control values restored); run the suite on a freshly booted board.
+
+### 3. Argus delivers mode 5 at half rate
+
+In mode 5 (2064x1552, 10-bit) the sensor runs at 117 fps (VMAX 1743 at a line
+time of 4.902 µs) and raw V4L2 receives 117 fps, but Argus delivers 58.5 fps,
+every second frame. Same on stock Jetpack 6 and with both connections; not
+caused by this branch. Recorded as a known failure in the profiles.
+
+### 4. Compliance baseline: one more entry on Jetpack 7.2.1
+
+The video node's "MC information" check fails on the nvcsi entity's function
+`0x0002000a` ("Unknown sub-device"). Jetpack 6's v4l2-compliance 1.22 reports
+the same value without failing; 1.26 fails it. The other three accepted
+failures are the same on both releases: NVIDIA's media graph
+(`MEDIA_IOC_ENUM_ENTITIES/LINKS`, `MEDIA_IOC_G_TOPOLOGY`) and the tegracam
+subdev without control events.
+
+### 5. Kernel warning when a stream without frames is stopped
+
+Stopping a stream that never received a frame (for example in slave mode)
+logs `videobuf2_common: driver bug: stop_streaming operation is leaving buffer
+N in active state` and a WARNING in `videobuf2-core.c:2102`. NVIDIA's VI
+driver (`vi5_fops.c`) returns the buffers in its capture and dequeue lists,
+but not those its dequeue thread holds or the RCE still has. FRAMOS does not
+change this code; the kernel reclaims the buffers. Not fixed.
+
+### 6. Argus over-rate in the first hour after flashing (not reproduced)
+
+In the first hour after flashing, Argus mode 0 ran at 73.7–73.8 fps (above the
+mode's 72.07 maximum) after other modes, mode 5 failed with `SCF: Error
+0x0000000f: Error 15 Received for sensor 2`, and raw V4L2 then received no
+frames until a reboot. It did not come back in about 25 later Argus sessions
+and three full suite runs, including runs without Argus' cache, after raw
+streams in other modes, and with the release driver build. A driver build that
+logs every frame rate change showed VMAX always computed with the current
+mode's line time. The suite detects all three signatures.
+
+### 7. A marginal CSI cable loses stream starts
+
+On the Jetpack 6 reference, one flex cable lost 7 of 20 stream starts per mode
+(the VI discarded every frame of that start, `corr_err`, `err_data
+0x02600062`); another cable of the same length passed 60 of 60. The first
+cable works on a Raspberry Pi, which uses a lower lane rate; the IMX900 runs at
+2376 Mbps/lane here.
+
+## Not tested (2026-10-01)
+
+- Orin NX (profiles `nx-p3768-cam1-{direct,gmsl}-imx900-4lane` exist).
+- AGX Orin with the FPA-4.A/AGX: built and installed, hardware test pending,
+  see [TEST-RESULTS-l4t-r39.2.1-agx.md](TEST-RESULTS-l4t-r39.2.1-agx.md).
+- IMX900 modes other than the three full-resolution ones, 1/2-lane
+  configurations, trigger and sync modes, image quality, long-term stability.
+
+# Yocto image, 2026-09-28
+
 Hardware test of this branch, 2026-09-28.
 
 ## Summary
@@ -130,7 +261,10 @@ changes at stream start, not when the format is set:
   them while the stream in the target mode runs. After that the value is kept,
   and the next stream in that mode starts at it.
 
-### 2. Argus needs a NITO file on Jetpack 7.2
+### 2. Argus needs a NITO file on Jetpack 7.2 (resolved 2026-10-01)
+
+With `isp/imx900_rear_framos.nito` installed under the badge name, Argus
+works; see the section on stock Jetpack 7.2.1 above.
 
 Jetpack 7.2 uses NITO tuning files only. Argus logs:
 

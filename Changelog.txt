@@ -35,4 +35,9 @@ l4t-r39.2.1 community port (2026-09-28)
         - tests/hw: pytest hardware test suite with per-board profiles
           (AGX Orin FPA-4.A/AGX J5 direct; Orin Nano/NX cam1 direct and GMSL3;
           Orin Nano Jetpack 6 reference)
-        - built and installed on AGX Orin; hardware tests pending
+        - built and installed on AGX Orin; hardware test with FPA-4.A/AGX pending
+        - Orin Nano (stock Jetpack 7.2.1), IMX900 direct and GMSL3: probe,
+          raw V4L2 72/117/125 fps, Argus with imx900_rear_framos.nito
+          (mode 0 at 72 fps; mode 5 at 58.5 fps, as on Jetpack 6)
+        - compared with a stock Jetpack 6.2.1 + FRAMOS l4t-r36.4.4 reference
+        - fix: depmod overrides name the module file (kmod 31)

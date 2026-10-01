@@ -18,16 +18,17 @@ supports AGX Thor only.
     as in l4t-r36.4.4.
 - Build-tested on 2026-09-25 with OE4T meta-tegra (L4T 39.2.1, kernel
   6.8.12): all 24 driver modules and 192 overlays build.
-- Hardware-tested on 2026-09-28 on an Orin Nano devkit Super with an IMX900
-  over GMSL3 (fr_fpa_a_p22 + fr_imx900-cam1-4lane + fr_cam1-gmsl). The sensor
-  probes, and raw V4L2 capture of 2064x1552 RGGB12 runs at 60 fps. **Argus does
-  not work yet:** Jetpack 7.2 requires a NITO tuning file for the IMX900, and
-  V4L2 controls are 64-bit (use `v4l2-ctl`, not `v4l2src extra-controls`). See
-  [TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md).
+- Hardware-tested on 2026-09-28 on an Orin Nano devkit Super with a Yocto
+  image, IMX900 over GMSL3. V4L2 controls are 64-bit (use `v4l2-ctl`, not
+  `v4l2src extra-controls`).
 - **Stock Jetpack 7.2.1** (Ubuntu 24.04, kernel `6.8.12-1021-tegra`): the
   drivers build and install on the Jetson itself with `build/target_build.sh`
-  (next section). Built and installed on an AGX Orin devkit on 2026-09-30;
-  the hardware test with the FPA-4.A/AGX is pending.
+  (next section). Hardware-tested on 2026-10-01 on an Orin Nano devkit Super
+  with the IMX900 directly on FPA-A/P22 and over GMSL3: probe, raw V4L2 at
+  72/117/125 fps and **Argus with a NITO file work**; see
+  [TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md). Built and
+  installed on an AGX Orin devkit; the hardware test with the FPA-4.A/AGX is
+  pending ([TEST-RESULTS-l4t-r39.2.1-agx.md](TEST-RESULTS-l4t-r39.2.1-agx.md)).
 - `tools/jetson-config-camera(-cli).py` work with the Jetpack 7 jetson-io and
   write a separate `FramosCamera` boot entry.
 - `tests/hw/`: pytest suite for testing a camera setup on the Jetson, see
@@ -79,6 +80,11 @@ module's badge in `/var/nvidia/nvcam/settings/`, for example
 `imx900_bottomleft_framos.nito` (AGX Orin FPA-4.A/AGX J5). NVIDIA's "Jetson
 Customer IQ Migration Tools" (camera hotfix, `nvcfg2nito`) convert a Jetpack 6
 `.isp` override into a NITO file; they are not part of this repository.
+
+Run `tests/hw` ([tests/hw/README.md](tests/hw/README.md)) on a freshly booted
+board to check a setup. If a direct connection loses stream starts
+(`corr_err` in the kernel log), try another flex cable first: at 2376
+Mbps/lane a marginal cable shows up long before it does on a Raspberry Pi.
 
 The procedure further below describes Jetpack 6.
 
