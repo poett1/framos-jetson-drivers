@@ -129,6 +129,15 @@ function _camera_stack() {
     done | sort
 }
 
+# depmod override lines for the given .ko files; kmod matches an override against
+# the file name, so "tegra-camera", not the module name "tegra_camera"
+function _override_lines() {
+    local ko
+    for ko in "$@"; do
+        echo "override $(basename ${ko} .ko) * updates/framos"
+    done
+}
+
 # install the camera stack into updates/framos, overriding the stock modules
 function install_oot_modules() {
     _preflight || return 1
@@ -149,9 +158,7 @@ function install_oot_modules() {
     sudo cp "${modules[@]}" ${FRAMOS_MODULES_DIR}/ || return 1
     {
         echo "# FRAMOS camera stack, written by build/target_build.sh install_oot_modules"
-        for ko in "${modules[@]}"; do
-            echo "override $(modinfo -F name ${ko}) * updates/framos"
-        done
+        _override_lines "${modules[@]}"
     } | sudo tee ${FRAMOS_DEPMOD_CONF} > /dev/null || return 1
     sudo depmod -a ${KERNEL_RELEASE} || return 1
 
