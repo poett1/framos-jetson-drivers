@@ -99,3 +99,42 @@ def test_restore_ctrls_sets_only_changed_and_reports_leftovers():
                          read=lambda dev: dict(state), write=write)
     assert sorted(written) == [("data_rate", 0), ("operation_mode", 0), ("stuck", 1)]
     assert left == {"stuck": (1, 7)}
+
+
+class _StuckProc:
+    """A v4l2-ctl stuck in the driver (D-state): kill() has no effect, wait() never returns."""
+    stdout = iter(())
+    killed = False
+
+    def poll(self):
+        return None
+
+    def kill(self):
+        _StuckProc.killed = True
+
+    def wait(self, timeout=None):
+        if timeout is None:
+            raise AssertionError("wait() without timeout would hang the suite")
+        raise subprocess.TimeoutExpired("v4l2-ctl", timeout)
+
+
+def test_stream_gives_up_on_a_process_stuck_in_the_driver(monkeypatch):   # Review Focus 4
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: _StuckProc())
+    t0 = time.monotonic()
+    with pytest.raises(StreamTimeout, match="did not exit"):
+        stream("/dev/video0", MODE, 10, {}, timeout=0.5)
+    assert _StuckProc.killed and time.monotonic() - t0 < 20
+
+
+def test_control_calls_have_timeouts(monkeypatch):
+    from lib import v4l2
+    seen = []
+
+    def fake_run(cmd, **kw):
+        seen.append(kw.get("timeout"))
+        return subprocess.CompletedProcess(cmd, 0, "frame_rate: 1\n", "")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    v4l2.get_ctrls("/dev/video0", ["frame_rate"])
+    v4l2.set_ctrl("/dev/video0", "frame_rate", 1)
+    v4l2.snapshot_ctrls("/dev/video0")
+    assert seen and all(t for t in seen)

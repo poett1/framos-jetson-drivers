@@ -28,6 +28,10 @@ class StreamTimeout(Exception):
     pass
 
 
+CTRL_TIMEOUT = 10  # s, v4l2-ctl control calls
+EXIT_TIMEOUT = 10  # s, for v4l2-ctl to exit after kill
+
+
 def _fmt(mode):
     return (f"--set-fmt-video=width={mode['width']},height={mode['height']},"
             f"pixelformat={mode['pixelformat']}")
@@ -44,12 +48,13 @@ def parse_ctrls(text):
 
 def get_ctrls(dev, names):
     cmd = ["v4l2-ctl", "-d", dev] + [arg for n in names for arg in ("-C", n)]
-    return parse_ctrls(subprocess.run(cmd, capture_output=True, text=True, check=True).stdout)
+    return parse_ctrls(subprocess.run(cmd, capture_output=True, text=True, check=True,
+                                      timeout=CTRL_TIMEOUT).stdout)
 
 
 def set_ctrl(dev, name, value):
     subprocess.run(["v4l2-ctl", "-d", dev, f"--set-ctrl={name}={value}"],
-                   capture_output=True, text=True, check=True)
+                   capture_output=True, text=True, check=True, timeout=CTRL_TIMEOUT)
 
 
 def parse_stream(text):
@@ -95,7 +100,12 @@ def stream(dev, mode, frames, ctrls_after_start, timeout, cmd_prefix=None):
     finally:
         if proc.poll() is None:
             proc.kill()
-        proc.wait()
+        try:
+            proc.wait(EXIT_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            # stuck in the driver (D-state): report it instead of hanging the suite
+            raise StreamTimeout(f"v4l2-ctl did not exit within {EXIT_TIMEOUT} s after kill "
+                                "(stuck in the driver)") from None
         thread.join(2)
     return "".join(lines)
 
@@ -144,7 +154,7 @@ def parse_ctrl_list(text):
 
 def snapshot_ctrls(dev):
     return parse_ctrl_list(subprocess.run(["v4l2-ctl", "-d", dev, "-l"], capture_output=True,
-                                          text=True, check=True).stdout)
+                                          text=True, check=True, timeout=CTRL_TIMEOUT).stdout)
 
 
 def restore_ctrls(dev, snapshot, read=snapshot_ctrls, write=set_ctrl):
