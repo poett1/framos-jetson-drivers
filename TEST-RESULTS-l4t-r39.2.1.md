@@ -86,9 +86,14 @@ on stock Jetpack 6, on a freshly booted board, with the ISP at 729.6 MHz and
 EMC at 3.2 GHz (power mode MAXN_SUPER), with a fixed 1 ms exposure and gain 1,
 and without any correctable-error event in the nvargus-daemon log.
 
-The Yocto image of 2026-09-28 (same drivers and NITO; issue 2 of that test,
-below) delivered mode 5 at 117 fps. The difference between the images is not resolved yet.
-Recorded as a known failure in the stock Jetpack 7.2.1 profiles.
+With the fix of finding 8, the sensor provably starts at 117 fps: VMAX read
+back at `start_streaming` is `0x6cf`, and Argus toggles group hold every
+~8.5 ms, i.e. requests 117 frames per second. Argus still delivers 58.5 fps on
+stock Jetpack 7.2.1, so the cause there is outside the driver's frame-rate
+programming. The Yocto image of 2026-09-28 (same drivers and NITO; issue 2 of
+that test, below) delivered mode 5 at 117 fps after a slow start of a few
+seconds, which finding 8 addresses. Recorded as a known failure in the stock
+Jetpack 7.2.1 profiles.
 
 ### 4. Compliance baseline: one more entry on Jetpack 7.2.1
 
@@ -133,6 +138,18 @@ On the Jetpack 6 reference, one flex cable lost 7 of 20 stream starts per mode
 0x02600062`); another cable of the same length passed 60 of 60. The first
 cable works on a Raspberry Pi, which uses a lower lane rate; the IMX900 runs at
 2376 Mbps/lane here.
+
+### 8. A new mode started at the previous mode's frame rate (fixed)
+
+`camera_common` selects the mode by size only, so the `frame_rate` control kept
+the previous mode's value across a 12/10/8-bit switch, and tegracam's
+stream-start override programmed VMAX from it. A raw V4L2 stream that sets no
+rate ran at 72 fps in mode 5 and mode 10 after mode 0; Argus started mode 5 at
+72 fps timing (VMAX `0xb11`) and got every second frame until it re-sent its
+settings. Since a4b8bf5, `fr_imx900` sets a new mode's DT default frame rate
+when the mode changes; a rate set within one mode is kept. Test
+`test_mode_switch_starts_at_mode_default_rate`: before 72.07 / 72.08 / 72.07
+fps, after 72.03 / 117.03 / 125.03 fps.
 
 ## Not tested (2026-10-01)
 

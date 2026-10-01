@@ -41,3 +41,6 @@ l4t-r39.2.1 community port (2026-09-28)
           (mode 0 at 72 fps; mode 5 at 58.5 fps, as on Jetpack 6)
         - compared with a stock Jetpack 6.2.1 + FRAMOS l4t-r36.4.4 reference
         - fix: depmod overrides name the module file (kmod 31)
+        - fix: fr_imx900 starts a new mode at its own default frame rate
+          (a 12/10/8-bit switch kept the previous mode's rate; Argus mode 5
+          started at 72 fps timing)
