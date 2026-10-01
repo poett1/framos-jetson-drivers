@@ -92,9 +92,9 @@ function check() {
 }
 
 
-export MODULES_DIR=/lib/modules/${KERNEL_RELEASE}
-export FRAMOS_MODULES_DIR=${MODULES_DIR}/updates/framos
-export FRAMOS_DEPMOD_CONF=/etc/depmod.d/framos.conf
+export MODULES_DIR=${MODULES_DIR:-/lib/modules/${KERNEL_RELEASE}}
+export FRAMOS_MODULES_DIR=${FRAMOS_MODULES_DIR:-${MODULES_DIR}/updates/framos}
+export FRAMOS_DEPMOD_CONF=${FRAMOS_DEPMOD_CONF:-/etc/depmod.d/framos.conf}
 export FRAMOS_DTBO_DIR=/boot/framos/dtbo
 # the stock symbol versions a build is made against; their checksums are the build stamp
 export STOCK_SYMVERS=${STOCK_SYMVERS:-"${MODULES_DIR}/build/Module.symvers $(ls /usr/src/nvidia/*/Module.symvers 2> /dev/null | tr '\n' ' ')"}
@@ -173,6 +173,37 @@ function _override_lines() {
     done
 }
 
+# copy the modules into updates/framos, write the overrides, run depmod and check that
+# every module resolves there; on any failure remove it all again (stock modules apply)
+function _install_files() {
+    sudo rm -rf ${FRAMOS_MODULES_DIR} || return 1
+    if ! { sudo mkdir -p ${FRAMOS_MODULES_DIR} && sudo cp "$@" ${FRAMOS_MODULES_DIR}/ &&
+            { echo "# FRAMOS camera stack, written by build/target_build.sh install_oot_modules"
+              _override_lines "$@"; } | sudo tee ${FRAMOS_DEPMOD_CONF} > /dev/null &&
+            sudo depmod -a ${KERNEL_RELEASE} && _verify_install "$@"; }; then
+        _rollback_install
+        return 1
+    fi
+}
+
+function _verify_install() {
+    local ko name
+    for ko in "$@"; do
+        name=$(modinfo -F name ${ko})
+        if [[ -z "${name}" || "$(modinfo -k ${KERNEL_RELEASE} -n ${name} 2> /dev/null)" != ${FRAMOS_MODULES_DIR}/* ]]; then
+            echo -e "${red}$(basename ${ko}) does not resolve to ${FRAMOS_MODULES_DIR}${normal}"
+            return 1
+        fi
+    done
+    sudo modprobe --dry-run -S ${KERNEL_RELEASE} fr_imx900 || return 1
+}
+
+function _rollback_install() {
+    sudo rm -rf ${FRAMOS_MODULES_DIR} ${FRAMOS_DEPMOD_CONF}
+    sudo depmod -a ${KERNEL_RELEASE}
+    echo -e "${red}install failed and was rolled back: the stock modules are used${normal}"
+}
+
 # install the camera stack into updates/framos, overriding the stock modules
 function install_oot_modules() {
     _preflight || return 1
@@ -190,23 +221,7 @@ function install_oot_modules() {
         --stock-modules-dir ${MODULES_DIR}/updates --exclude-dir ${FRAMOS_MODULES_DIR} || return 1
 
     echo -e "${yel}out of tree kernel modules install ... ${normal}"
-    sudo rm -rf ${FRAMOS_MODULES_DIR} || return 1
-    sudo mkdir -p ${FRAMOS_MODULES_DIR} || return 1
-    sudo cp "${modules[@]}" ${FRAMOS_MODULES_DIR}/ || return 1
-    {
-        echo "# FRAMOS camera stack, written by build/target_build.sh install_oot_modules"
-        _override_lines "${modules[@]}"
-    } | sudo tee ${FRAMOS_DEPMOD_CONF} > /dev/null || return 1
-    sudo depmod -a ${KERNEL_RELEASE} || return 1
-
-    for ko in "${modules[@]}"; do
-        name=$(modinfo -F name ${ko})
-        if [[ "$(modinfo -k ${KERNEL_RELEASE} -n ${name})" != ${FRAMOS_MODULES_DIR}/* ]]; then
-            echo -e "${red}${name} does not resolve to ${FRAMOS_MODULES_DIR}${normal}"
-            return 1
-        fi
-    done
-    sudo modprobe --dry-run -S ${KERNEL_RELEASE} fr_imx900 || return 1
+    _install_files "${modules[@]}" || return 1
     echo -e "${grn}${#modules[@]} modules installed in ${FRAMOS_MODULES_DIR}; reboot to load them${normal}"
 }
 

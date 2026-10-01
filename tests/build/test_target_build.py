@@ -49,3 +49,24 @@ def test_build_stamp_detects_changed_headers(tmp_path):
     symvers.write_text("0x2\tfoo\tvmlinux\tEXPORT_SYMBOL\n")  # headers package updated
     rc, out = _bash_rc("_check_build_stamp", env)
     assert rc == 1 and "other kernel headers" in out
+
+
+def test_failed_install_rolls_back(tmp_path):
+    # fake sudo/depmod; the verify step fails (modinfo -k does not know the fake tree)
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "sudo").write_text('#!/bin/sh\nexec "$@"\n')
+    (fake / "depmod").write_text("#!/bin/sh\nexit 0\n")
+    for f in fake.iterdir():
+        f.chmod(0o755)
+    mods = tmp_path / "modules"
+    ko = tmp_path / "fr_imx900.ko"
+    ko.write_bytes(b"not really a module")
+    env = {"PATH": f"{fake}:/usr/bin:/bin", "MODULES_DIR": str(mods),
+           "FRAMOS_MODULES_DIR": str(mods / "updates/framos"),
+           "FRAMOS_DEPMOD_CONF": str(tmp_path / "framos.conf")}
+    rc, out = _bash_rc(f"_install_files {ko}", env)
+    assert rc == 1
+    assert not (mods / "updates/framos").exists()
+    assert not (tmp_path / "framos.conf").exists()
+    assert "stock modules" in out and "rolled back" in out
