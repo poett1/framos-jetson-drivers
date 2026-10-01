@@ -8,6 +8,10 @@ devname: "imx900 9-001a"
 badge: imx900_rear_framos
 modules: [fr_imx900, fr_common]
 argus_tuning: nito
+# measured 2026-10-01 (commit 87b8734), as on Jetpack 6: the sensor runs mode 5 at 117 fps
+# (VMAX 1743 x 4.902 us), Argus delivers every second frame
+known_failures:
+  "test_07_argus.py::test_argus_rate[mode5]": "Argus delivers 2064x1552 10-bit at 58.5 fps (every second frame of the sensor's 117 fps); same on stock Jetpack 6"
 
 controls:
   defaults:
