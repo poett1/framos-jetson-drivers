@@ -17,9 +17,24 @@ class BaselineMissing(Exception):
 
 
 def run(kind, devnode):
-    """v4l2-compliance output for one node, whatever its exit code."""
-    return subprocess.run(["v4l2-compliance", NODES[kind], devnode], capture_output=True,
-                          text=True, timeout=300).stdout
+    """v4l2-compliance output (stdout and stderr) for one node, whatever its exit code."""
+    r = subprocess.run(["v4l2-compliance", NODES[kind], devnode], capture_output=True,
+                       text=True, timeout=300)
+    return r.stdout + r.stderr
+
+
+def has_summary(text):
+    """True if v4l2-compliance got as far as its "Total for ..." summary."""
+    return "Total for " in text
+
+
+def known_failure_status(results, name):
+    """Status of a baseline entry in this run; LookupError if the run has no such test
+    (a renamed test or a node that was not tested is not a fixed failure)."""
+    if name not in results:
+        raise LookupError(f"{name} is not in this v4l2-compliance run (renamed test, "
+                          f"or the node was not tested)")
+    return results[name]
 
 
 def parse(text):

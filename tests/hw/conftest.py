@@ -151,8 +151,9 @@ def compliance_results(sensor):
     # v4l2-compliance leaves controls at test values (seen: operation_mode = Slave Mode,
     # after which the sensor sends no frames), so put them back afterwards
     before = v4l2.snapshot_ctrls(sensor.video)
-    SESSION["compliance"] = {kind: compliance.parse(compliance.run(kind, dev))
-                             for kind, dev in nodes.items()}
+    SESSION["compliance_output"] = {kind: compliance.run(kind, dev) for kind, dev in nodes.items()}
+    SESSION["compliance"] = {kind: compliance.parse(out)
+                             for kind, out in SESSION["compliance_output"].items()}
     left = v4l2.restore_ctrls(sensor.video, before)
     if left:
         raise RuntimeError(f"controls not restored after v4l2-compliance: {left}")

@@ -69,3 +69,16 @@ def test_new_failures_against_baseline():
 def test_known_failure_params_sorted():
     assert known_failure_params({"video": {"B", "A"}, "media": {"C"}}) == [
         ("media", "C"), ("video", "A"), ("video", "B")]
+
+
+def test_run_summary_detects_a_run_that_tested_nothing():
+    from lib.compliance import has_summary
+    assert has_summary(SAMPLE)
+    assert not has_summary("Failed to open /dev/video0: Device or resource busy\n")
+
+
+def test_known_failure_with_missing_name_is_not_reported_as_fixed():
+    from lib.compliance import known_failure_status
+    with pytest.raises(LookupError):
+        known_failure_status({"VIDIOC_QUERYCAP": "OK"}, "VIDIOC_TRY_FMT")
+    assert known_failure_status({"VIDIOC_TRY_FMT": "FAIL"}, "VIDIOC_TRY_FMT") == "FAIL"

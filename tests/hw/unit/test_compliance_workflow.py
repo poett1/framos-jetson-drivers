@@ -62,3 +62,22 @@ def test_baseline_workflow(suite):
     fourth = _run(suite, regressed)
     fourth.assert_outcomes(passed=2, xfailed=2, failed=1)
     fourth.stdout.fnmatch_lines(["*new v4l2-compliance failures (subdev)*VIDIOC_SUBDEV_QUERYCAP*"])
+
+
+def test_compliance_that_tested_nothing_fails(suite):
+    # v4l2-compliance could not open the node: no results must not pass
+    _run(suite, RESULTS, "--write-compliance-baseline")
+    empty = {"video": {}, "subdev": RESULTS["subdev"], "media": RESULTS["media"]}
+    result = _run(suite, empty)
+    result.stdout.fnmatch_lines(["*v4l2-compliance reported no results (video)*"])
+    assert result.ret != 0
+
+
+def test_known_failure_missing_from_run_is_an_error_not_fixed(suite):
+    _run(suite, RESULTS, "--write-compliance-baseline")
+    renamed = {**RESULTS, "media": {"MEDIA_IOC_G_TOPOLOGY_RENAMED": "FAIL"}}
+    result = _run(suite, renamed)
+    outcomes = result.parseoutcomes()
+    assert outcomes.get("xpassed", 0) == 0     # never "remove this baseline line"
+    assert outcomes.get("failed", 0) >= 1
+    result.stdout.fnmatch_lines(["*not in this v4l2-compliance run*"])
