@@ -33,3 +33,18 @@ def test_nothing_changed_without_sudo(tmp_path, chowns, monkeypatch):
     monkeypatch.delenv("SUDO_UID")
     report.write_results(tmp_path / "r", {}, [])
     assert chowns == []
+
+
+def test_existing_parent_of_results_dir_is_not_handed_back(tmp_path, chowns):
+    # sudo pytest --results-dir /tmp/run1 must not give /tmp to the user
+    report.write_results(tmp_path / "run1", {}, [])
+    owned = {p for p, uid, gid in chowns}
+    assert str(tmp_path) not in owned
+    assert str(tmp_path / "run1") in owned
+
+
+def test_existing_baseline_dir_is_not_handed_back(tmp_path, chowns):
+    path = tmp_path / "p.txt"
+    compliance.write_baseline(path, {"video": ["X"]}, "# h")
+    owned = {p for p, uid, gid in chowns}
+    assert str(tmp_path) not in owned and str(path) in owned

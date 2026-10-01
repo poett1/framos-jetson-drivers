@@ -4,7 +4,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from lib.sysinfo import hand_back
+from lib.sysinfo import hand_back, make_dirs
 
 # -M: the media device only; -m would also test every interface again
 NODES = {"video": "-d", "subdev": "-u", "media": "-M"}
@@ -62,9 +62,9 @@ def write_baseline(path, fails, header):
     lines = [header.rstrip("\n"), ""]
     for kind in sorted(fails):
         lines += [f"{kind}: {name}" for name in sorted(fails[kind])]
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    created = make_dirs(Path(path).parent)
     Path(path).write_text("\n".join(lines) + "\n")
-    hand_back(Path(path).parent, path)
+    hand_back(*created, path)
 
 
 def new_failures(kind, results, baseline, path):

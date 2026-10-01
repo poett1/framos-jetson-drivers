@@ -3,6 +3,7 @@
 import os
 import re
 import subprocess
+from pathlib import Path
 
 
 def repo_commit(repo):
@@ -46,3 +47,16 @@ def hand_back(*paths):
             os.chown(path, int(uid), int(gid))
         except OSError:
             pass
+
+
+def make_dirs(path):
+    """Create `path` and missing parents; return the directories created, outermost first
+    (only those may be handed back: never an existing directory such as /tmp)."""
+    path = Path(path)
+    missing = []
+    while not path.exists():
+        missing.append(path)
+        path = path.parent
+    for d in reversed(missing):
+        d.mkdir(exist_ok=True)
+    return list(reversed(missing))
