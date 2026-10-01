@@ -19,7 +19,7 @@ Two hardware tests of this branch on an Orin Nano devkit Super:
 | Controls right after boot | ✅ 72 fps / 10 ms / gain 0 | ✅ same |
 | Raw V4L2, 2064x1552 12/10/8-bit at maximum rate | ✅ 72.03 / 117.03 / 125.03 fps, no gaps, no CSI errors | ✅ same |
 | Argus with `imx900_rear_framos.nito`, mode 0 (12-bit) | ✅ 72 fps | ✅ 72 fps |
-| Argus mode 5 (10-bit, 117 fps) | ⚠ 58.5 fps, as on Jetpack 6 (finding 3) | ⚠ same |
+| Argus mode 5 (10-bit, 117 fps) | ⚠ 58.5 fps (finding 3; the Yocto image reached 117) | ⚠ same |
 | v4l2-compliance | ✅ 4 accepted NVIDIA failures (baseline) | ✅ same |
 | `tests/hw` suite, fresh boot | ✅ all pass except Argus mode 5 | ✅ 80 passed, 5 expected failures |
 
@@ -53,7 +53,7 @@ FRAMOS' official l4t-r36.4.4 driver, installed per the FRAMOS wiki, Argus with
 | Probe, device tree, media graph | ✅ | ✅ |
 | Controls right after boot | ❌ 1.5 fps / 9 µs (control minimum) | ✅ 72 fps / 10 ms (fixed in 3367073) |
 | Raw V4L2 12/10/8-bit | 72.03 / 117.03 / 125.03 fps | 72.03 / 117.03 / 125.03 fps |
-| Argus mode 0 / mode 5 | 72 / 58–72 fps | 72 / 58.5 fps |
+| Argus mode 0 / mode 5 | 72 / 58–72 fps | 72 / 58.5 fps (Yocto image: 72 / 117) |
 | v4l2-compliance | 3 accepted failures | the same 3 + 1 (finding 4) |
 
 ## Findings
@@ -77,12 +77,18 @@ v4l2-compliance and runs it last. After standalone v4l2-compliance runs, a
 reboot was needed before raw V4L2 streamed again (seen on Jetpack 6, with the
 control values restored); run the suite on a freshly booted board.
 
-### 3. Argus delivers mode 5 at half rate
+### 3. Argus delivers mode 5 at half rate on the stock images
 
 In mode 5 (2064x1552, 10-bit) the sensor runs at 117 fps (VMAX 1743 at a line
 time of 4.902 µs) and raw V4L2 receives 117 fps, but Argus delivers 58.5 fps,
-every second frame. Same on stock Jetpack 6 and with both connections; not
-caused by this branch. Recorded as a known failure in the profiles.
+every second frame. This holds on stock Jetpack 7.2.1 with both connections and
+on stock Jetpack 6, on a freshly booted board, with the ISP at 729.6 MHz and
+EMC at 3.2 GHz (power mode MAXN_SUPER), with a fixed 1 ms exposure and gain 1,
+and without any correctable-error event in the nvargus-daemon log.
+
+The Yocto image of 2026-09-28 (same drivers and NITO; issue 2 of that test,
+below) delivered mode 5 at 117 fps. The difference between the images is not resolved yet.
+Recorded as a known failure in the stock Jetpack 7.2.1 profiles.
 
 ### 4. Compliance baseline: one more entry on Jetpack 7.2.1
 
@@ -93,25 +99,32 @@ failures are the same on both releases: NVIDIA's media graph
 (`MEDIA_IOC_ENUM_ENTITIES/LINKS`, `MEDIA_IOC_G_TOPOLOGY`) and the tegracam
 subdev without control events.
 
-### 5. Kernel warning when a stream without frames is stopped
+### 5. After Argus, raw V4L2 needs `bypass_mode=0`
 
-Stopping a stream that never received a frame (for example in slave mode)
-logs `videobuf2_common: driver bug: stop_streaming operation is leaving buffer
-N in active state` and a WARNING in `videobuf2-core.c:2102`. NVIDIA's VI
-driver (`vi5_fops.c`) returns the buffers in its capture and dequeue lists,
-but not those its dequeue thread holds or the RCE still has. FRAMOS does not
-change this code; the kernel reclaims the buffers. Not fixed.
+Argus leaves the sensor's `bypass_mode` at 1 (and `override_enable` at 1). A
+raw V4L2 stream after an Argus session then gets no frames until
+`v4l2-ctl -d /dev/video0 -c bypass_mode=0` is set; no reboot is needed. The
+suite's Argus fixture resets it. (This was found on the Yocto image first.)
 
-### 6. Argus over-rate in the first hour after flashing (not reproduced)
+Stopping such a stream, or any stream that never received a frame (for example
+in slave mode, finding 2), logs `videobuf2_common: driver bug: stop_streaming
+operation is leaving buffer N in active state` and a WARNING in
+`videobuf2-core.c:2102`. NVIDIA's VI driver (`vi5_fops.c`) returns the buffers
+in its capture and dequeue lists, but not those its dequeue thread holds or
+the RCE still has. FRAMOS does not change this code; the kernel reclaims the
+buffers.
 
-In the first hour after flashing, Argus mode 0 ran at 73.7–73.8 fps (above the
-mode's 72.07 maximum) after other modes, mode 5 failed with `SCF: Error
-0x0000000f: Error 15 Received for sensor 2`, and raw V4L2 then received no
-frames until a reboot. It did not come back in about 25 later Argus sessions
-and three full suite runs, including runs without Argus' cache, after raw
-streams in other modes, and with the release driver build. A driver build that
-logs every frame rate change showed VMAX always computed with the current
-mode's line time. The suite detects all three signatures.
+### 6. Failed Argus sessions leave per-frame errors behind
+
+An Argus session that ends abnormally (for example when nvargus-daemon is
+restarted while it streams, or a mode without a NITO knob set) leaves the
+capture in a state where nearly every frame raises `SCF: Error 0x0000000f:
+Error 15` (`CAPTURE_STATUS_CHANSEL_NOMATCH`, a frame without a matching capture
+request). The stock `nvarguscamerasrc` treats these correctable events as
+errors and stops after a few seconds. Restarting nvargus-daemon sometimes
+clears it; a reboot always does. This explains the failures seen in the first
+hour after flashing (mode 0 above its rate, mode 5 without frames); they did
+not occur on freshly booted boards.
 
 ### 7. A marginal CSI cable loses stream starts
 
@@ -140,7 +153,7 @@ Hardware test of this branch, 2026-09-28.
 | Build, 24 driver modules and 192 overlays | ✅ builds against L4T 39.2.1, kernel 6.8.12 |
 | IMX900 probe over GMSL3 | ✅ detected, bound to tegra-capture-vi |
 | Raw V4L2 capture, 2064x1552 in 12/10/8-bit | ✅ 72 fps by default; each full-resolution mode reaches its maximum (72/117/125 fps), no CSI errors (issue 1, fixed) |
-| Argus (nvarguscamerasrc, argus samples) | ❌ no camera: Jetpack 7.2 needs a NITO tuning file, and there is none for the IMX900 (issue 2) |
+| Argus (nvarguscamerasrc, argus samples) | ❌ at first: Jetpack 7.2 needs a NITO tuning file (issue 2); ✅ later that day with the NITO generated on this image: mode 0 at 72 fps, mode 5 at 117 fps |
 
 ## Setup
 
@@ -261,10 +274,13 @@ changes at stream start, not when the format is set:
   them while the stream in the target mode runs. After that the value is kept,
   and the next stream in that mode starts at it.
 
-### 2. Argus needs a NITO file on Jetpack 7.2 (resolved 2026-10-01)
+### 2. Argus needs a NITO file on Jetpack 7.2 (resolved)
 
-With `isp/imx900_rear_framos.nito` installed under the badge name, Argus
-works; see the section on stock Jetpack 7.2.1 above.
+Later on 2026-09-28 the NITO file was generated on this image with NVIDIA's
+automatic conversion (camera hotfix, `NVCAMERA_NITO_PATH=CONFIG`,
+`nvargus_nvraw --mode 0` and `--mode 5`), giving knob sets 0 and 5. With it,
+Argus delivered mode 0 at 72 fps and mode 5 at 117 fps. The file is
+`isp/imx900_rear_framos.nito`; for stock Jetpack 7.2.1 see the section above.
 
 Jetpack 7.2 uses NITO tuning files only. Argus logs:
 
