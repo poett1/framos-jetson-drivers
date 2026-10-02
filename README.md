@@ -74,12 +74,21 @@ Both write a boot entry `FramosCamera` into `/boot/extlinux/extlinux.conf`
 and make it the default. The stock `primary` entry is left unchanged and can
 be picked in the boot menu.
 
-For Argus, Jetpack 7.2 needs a NITO tuning file named after the camera
-module's badge in `/var/nvidia/nvcam/settings/`, for example
-`imx900_rear_framos.nito` (Orin Nano/NX cam1) or
-`imx900_bottomleft_framos.nito` (AGX Orin FPA-4.A/AGX J5). NVIDIA's "Jetson
-Customer IQ Migration Tools" (camera hotfix, `nvcfg2nito`) convert a Jetpack 6
-`.isp` override into a NITO file; they are not part of this repository.
+For Argus, Jetpack 7.2 needs a NITO tuning file for the camera module's badge
+in `/var/nvidia/nvcam/settings/`. `isp/` has two for the IMX900, converted from
+`IMX900_IRC650.isp`:
+
+```
+sudo install -m 644 isp/imx900_rear_framos.nito /var/nvidia/nvcam/settings/        # Orin Nano/NX cam1
+sudo install -m 644 isp/imx900_bottomleft_framos.nito /var/nvidia/nvcam/settings/  # AGX Orin FPA-4.A/AGX J5
+```
+
+Argus matches the badge stored inside the file, not the file name: a copy of
+one NITO renamed to another badge is not found ("No cameras available"), and
+editing the name inside makes it "corrupt". Each badge needs its own
+conversion. NVIDIA's "Jetson Customer IQ Migration Tools" (camera hotfix,
+`nvcfg2nito`) do that on the Jetson from a Jetpack 6 `.isp` override; they are
+not part of this repository.
 
 At the default clocks, `nvarguscamerasrc` delivers IMX900 mode 5 (2064x1552
 10-bit, 117 fps) at 58.5 fps: the VIC clock, which converts each frame, stays
