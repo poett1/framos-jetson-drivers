@@ -19,9 +19,9 @@ Two hardware tests of this branch on an Orin Nano devkit Super:
 | Controls right after boot | ✅ 72 fps / 10 ms / gain 0 | ✅ same |
 | Raw V4L2, 2064x1552 12/10/8-bit at maximum rate | ✅ 72.03 / 117.03 / 125.03 fps, no gaps, no CSI errors | ✅ same |
 | Argus with `imx900_rear_framos.nito`, mode 0 (12-bit) | ✅ 72 fps | ✅ 72 fps |
-| Argus mode 5 (10-bit, 117 fps) | ⚠ 58.5 fps (finding 3; the Yocto image reached 117) | ⚠ same |
+| Argus mode 5 (10-bit, 117 fps) | ⚠ 58.5 fps at the default VIC clock, 117 fps with VIC at maximum or `jetson_clocks` (finding 3) | same |
 | v4l2-compliance | ✅ 4 accepted NVIDIA failures (baseline) | ✅ same |
-| `tests/hw` suite, fresh boot | ✅ all pass except Argus mode 5 | ✅ 80 passed, 5 expected failures |
+| `tests/hw` suite, fresh boot | ✅ all pass except Argus mode 5 (run before the suite pinned VIC) | ✅ 95 passed, 4 accepted compliance failures (2026-10-02, VIC pinned) |
 
 ## Setup
 
@@ -53,7 +53,7 @@ FRAMOS' official l4t-r36.4.4 driver, installed per the FRAMOS wiki, Argus with
 | Probe, device tree, media graph | ✅ | ✅ |
 | Controls right after boot | ❌ 1.5 fps / 9 µs (control minimum) | ✅ 72 fps / 10 ms (fixed in 3367073) |
 | Raw V4L2 12/10/8-bit | 72.03 / 117.03 / 125.03 fps | 72.03 / 117.03 / 125.03 fps |
-| Argus mode 0 / mode 5 | 72 / 58–72 fps | 72 / 58.5 fps (Yocto image: 72 / 117) |
+| Argus mode 0 / mode 5 | 72 / 58–72 fps (VIC not pinned) | 72 / 58.5 fps; 72 / 117 fps with VIC at maximum (finding 3) |
 | v4l2-compliance | 3 accepted failures | the same 3 + 1 (finding 4) |
 
 ## Findings
@@ -77,23 +77,39 @@ v4l2-compliance and runs it last. After standalone v4l2-compliance runs, a
 reboot was needed before raw V4L2 streamed again (seen on Jetpack 6, with the
 control values restored); run the suite on a freshly booted board.
 
-### 3. Argus delivers mode 5 at half rate on the stock images
+### 3. Argus delivers mode 5 at half rate at the default VIC clock
 
 In mode 5 (2064x1552, 10-bit) the sensor runs at 117 fps (VMAX 1743 at a line
-time of 4.902 µs) and raw V4L2 receives 117 fps, but Argus delivers 58.5 fps,
-every second frame. This holds on stock Jetpack 7.2.1 with both connections and
-on stock Jetpack 6, on a freshly booted board, with the ISP at 729.6 MHz and
-EMC at 3.2 GHz (power mode MAXN_SUPER), with a fixed 1 ms exposure and gain 1,
-and without any correctable-error event in the nvargus-daemon log.
+time of 4.902 µs) and raw V4L2 receives 117 fps, but `nvarguscamerasrc`
+delivers 58.5 fps, every second frame. It held on stock Jetpack 7.2.1 with both
+connections, with the ISP at 729.6 MHz and EMC at 3.2 GHz (power mode
+MAXN_SUPER), with a fixed exposure and gain, and on stock Jetpack 6.
 
-With the fix of finding 8, the sensor provably starts at 117 fps: VMAX read
-back at `start_streaming` is `0x6cf`, and Argus toggles group hold every
-~8.5 ms, i.e. requests 117 frames per second. Argus still delivers 58.5 fps on
-stock Jetpack 7.2.1, so the cause there is outside the driver's frame-rate
-programming. The Yocto image of 2026-09-28 (same drivers and NITO; issue 2 of
-that test, below) delivered mode 5 at 117 fps after a slow start of a few
-seconds, which finding 8 addresses. Recorded as a known failure in the stock
-Jetpack 7.2.1 profiles.
+The cause is the VIC clock, which converts each frame for `nvarguscamerasrc`.
+Its devfreq governor (`tegra_wmark`, `/sys/class/devfreq/15340000.vic`)
+settles too low for 2064x1552 at 117 fps. NVIDIA's libargus sample `yuvJpeg`
+(no GStreamer, JPEG encoding left out) receives mode 5 at 117.03 fps with every
+sensor frame at the default clocks. Each case below is the first Argus session
+after a reboot, stock Jetpack 7.2.1, GMSL3:
+
+| Clocks | Argus mode 5 | VIC during the capture |
+|---|---|---|
+| default | 58.5 fps for the whole run | 435 MHz for 3 s, then 166–192 MHz |
+| VIC `min_freq` set to `max_freq` | 115.5–117.2 fps | 435 MHz |
+| `sudo jetson_clocks` | 117.0 fps | 332–358 MHz (jetson_clocks does not set VIC; its governor goes higher with CPU, GPU and EMC at maximum) |
+
+The `tests/hw` suite pins VIC at its maximum during each Argus test (fixture
+`vic_max`, `tests/hw/lib/clocks.py`) and restores it afterwards. With that,
+mode 5 passes at 117.04 fps (2026-10-02). For applications, `sudo jetson_clocks`
+or pinning VIC alone works:
+
+```
+echo $(cat /sys/class/devfreq/15340000.vic/max_freq) | \
+    sudo tee /sys/class/devfreq/15340000.vic/min_freq
+```
+
+The VIC clock of the Yocto image of 2026-09-28 was not measured; it delivered
+mode 5 at 117 fps after a slow start that finding 8 addresses.
 
 ### 4. Compliance baseline: one more entry on Jetpack 7.2.1
 

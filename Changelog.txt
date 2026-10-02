@@ -39,6 +39,9 @@ l4t-r39.2.1 community port (2026-09-28)
         - Orin Nano (stock Jetpack 7.2.1), IMX900 direct and GMSL3: probe,
           raw V4L2 72/117/125 fps, Argus with imx900_rear_framos.nito
           (mode 0 at 72 fps; mode 5 at 58.5 fps, as on Jetpack 6)
+        - Argus mode 5 at half rate: the VIC clock stays too low for
+          nvarguscamerasrc; 117 fps with jetson_clocks or VIC pinned at its
+          maximum (README); tests/hw pins VIC during the Argus tests
         - compared with a stock Jetpack 6.2.1 + FRAMOS l4t-r36.4.4 reference
         - fix: depmod overrides name the module file (kmod 31)
         - fix: fr_imx900 starts a new mode at its own default frame rate

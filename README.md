@@ -25,7 +25,7 @@ supports AGX Thor only.
   drivers build and install on the Jetson itself with `build/target_build.sh`
   (next section). Hardware-tested on 2026-10-01 on an Orin Nano devkit Super
   with the IMX900 directly on FPA-A/P22 and over GMSL3: probe, raw V4L2 at
-  72/117/125 fps and **Argus with a NITO file work** (mode 5 at half rate on the stock image); see
+  72/117/125 fps and **Argus with a NITO file work** (mode 5 at 117 fps needs a faster VIC clock, see below); see
   [TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md). Built and
   installed on an AGX Orin devkit; the hardware test with the FPA-4.A/AGX is
   pending ([TEST-RESULTS-l4t-r39.2.1-agx.md](TEST-RESULTS-l4t-r39.2.1-agx.md)).
@@ -80,6 +80,18 @@ module's badge in `/var/nvidia/nvcam/settings/`, for example
 `imx900_bottomleft_framos.nito` (AGX Orin FPA-4.A/AGX J5). NVIDIA's "Jetson
 Customer IQ Migration Tools" (camera hotfix, `nvcfg2nito`) convert a Jetpack 6
 `.isp` override into a NITO file; they are not part of this repository.
+
+At the default clocks, `nvarguscamerasrc` delivers IMX900 mode 5 (2064x1552
+10-bit, 117 fps) at 58.5 fps: the VIC clock, which converts each frame, stays
+too low. `sudo jetson_clocks` (CPU, GPU and EMC at maximum; VIC then scales up
+by itself) or pinning VIC alone gives 117 fps:
+
+```
+echo $(cat /sys/class/devfreq/15340000.vic/max_freq) | \
+    sudo tee /sys/class/devfreq/15340000.vic/min_freq
+```
+
+Neither setting survives a reboot.
 
 After an Argus session, set `v4l2-ctl -d /dev/video0 -c bypass_mode=0` before
 capturing with raw V4L2 (Argus leaves it at 1, and raw V4L2 then gets no
