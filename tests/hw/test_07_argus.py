@@ -1,7 +1,8 @@
 """Argus capture (nvarguscamerasrc) per Argus mode: rate, daemon errors.
 
 Jetpack 7.2 needs <badge>.nito (argus_tuning: nito); Jetpack 6 uses the
-camera_overrides.isp override if present (argus_tuning: isp)."""
+camera_overrides.isp override if present (argus_tuning: isp). The VIC clock is pinned
+at its maximum during the capture (fixture vic_max)."""
 
 import subprocess
 
@@ -12,9 +13,10 @@ from lib.argus import daemon_errors, failure_report, parse_fps, pipeline, tuning
 pytestmark = pytest.mark.argus
 
 
-def test_argus_rate(profile, sensor, argus_mode, argus_daemon, record_property):
+def test_argus_rate(profile, sensor, argus_mode, vic_max, argus_daemon, record_property):
     tuning = tuning_file(profile)
     record_property("tuning", tuning.name if tuning.exists() else "none")
+    record_property("vic_mhz", vic_max)
     if profile["argus_tuning"] == "nito" and not tuning.exists():
         pytest.skip(f"no {tuning}")
     try:

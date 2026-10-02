@@ -17,7 +17,7 @@ sys.path.insert(0, str(HW_DIR))  # "lib" package; pytest 6.2 has no pythonpath i
 
 from lib.profile import ProfileError, load_profile  # noqa: E402
 from lib.report import TestResult, render_markdown, write_results  # noqa: E402
-from lib import compliance, dt, kmsg, media, v4l2  # noqa: E402
+from lib import clocks, compliance, dt, kmsg, media, v4l2  # noqa: E402
 from lib.sysinfo import install_type, l4t_release, repo_commit  # noqa: E402
 
 # per-session state; pytest 6.2 has no config.stash
@@ -158,6 +158,22 @@ def compliance_results(sensor):
     if left:
         raise RuntimeError(f"controls not restored after v4l2-compliance: {left}")
     return SESSION["compliance"]
+
+
+@pytest.fixture
+def vic_max():
+    """Pins the VIC clock at its maximum during the test and returns it in MHz (None if
+    the board has no VIC devfreq). At the governor's default clock nvarguscamerasrc
+    delivers only every second frame of fast modes, see lib/clocks.py."""
+    dev = clocks.find_vic()
+    if dev is None:
+        yield None
+        return
+    before = clocks.pin_max(dev)
+    try:
+        yield int((dev / "min_freq").read_text()) // 1000000
+    finally:
+        clocks.restore_min(dev, before)
 
 
 @pytest.fixture
