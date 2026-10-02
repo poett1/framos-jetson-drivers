@@ -1,10 +1,9 @@
 # Test results: l4t-r39.2.1 on Jetson AGX Orin
 
-Status 2026-10-01: built, installed and configured on an AGX Orin devkit with
-stock Jetpack 7.2.1. **The hardware test with the IMX900 on the FPA-4.A/AGX
-is pending** (the adapter was not available). The Orin Nano results in
-[TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md) cover the same
-drivers, build, install and test suite.
+Hardware test on 2026-10-02: AGX Orin devkit, stock Jetpack 7.2.1, IMX900
+directly on the FPA-4.A/AGX, connector J5, 4 lanes. The drivers, build,
+install and test suite are the ones of the Orin Nano test in
+[TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md).
 
 ## Summary
 
@@ -13,7 +12,12 @@ drivers, build, install and test suite.
 | Build on the Jetson (`target_build.sh check`) | ✅ 199 modules (24 `fr_*`), 192 overlays, about 3 min |
 | Install (`install_all`): 42 modules into `updates/framos`, symbol CRCs against the stock modules | ✅ 0 problems; all 42 resolve to `updates/framos` |
 | `jetson-config-camera(-cli).py` on the Jetpack 7 jetson-io | ✅ CLI and interactive tool write the same `FramosCamera` boot entry; `primary` unchanged |
-| IMX900 on FPA-4.A/AGX J5, 4 lanes | ⏳ pending |
+| Probe, device tree, media graph | ✅ `imx900 9-001a` (J5 = FPA-4.A mux channel 0, bus 9) |
+| Controls right after boot | ✅ 72 fps / 10 ms / gain 0 |
+| Raw V4L2, 2064x1552 12/10/8-bit at maximum rate | ✅ 72.03 / 117.03 / 125.03 fps, no gaps, no CSI errors; also after a mode switch |
+| Argus with `imx900_bottomleft_framos.nito` (finding 1) | ✅ mode 0 at 72.01 fps, mode 5 at 117.07 fps (VIC pinned at 729 MHz by the suite) |
+| v4l2-compliance | ✅ the same 4 accepted NVIDIA failures as on the Orin Nano |
+| `tests/hw` suite, fresh boot | ✅ 95 passed, 4 accepted compliance failures (commit fe6c39f) |
 
 ## Setup
 
@@ -29,19 +33,35 @@ drivers, build, install and test suite.
   	OVERLAYS /boot/framos/dtbo/tegra234-p3737-camera-fr_fpa_4a_agx-overlay.dtbo,/boot/framos/dtbo/tegra234-p3737-camera-fr_imx900-j5-4lane-overlay.dtbo
   ```
 
-## To do with the FPA-4.A/AGX
+## Findings
 
-1. Connect the IMX900 to J5 and boot the `FramosCamera` entry.
-2. Check the probe: `imx900 9-001a` (the overlay expects the FPA-4.A mux
-   channels on buses 9–16, J5 = bus 9).
-3. Install the NITO under the AGX badge:
-   `sudo install -m 644 isp/imx900_rear_framos.nito /var/nvidia/nvcam/settings/imx900_bottomleft_framos.nito`
-   (if Argus rejects it, convert on the device with NVIDIA's camera hotfix).
-4. On a freshly booted board:
-   `sudo python3 -m pytest tests/hw --profile=tests/hw/profiles/agx-fpa4a-j5-direct-imx900-4lane.yaml -m compliance --write-compliance-baseline`,
-   review the baseline (the Orin Nano baselines list the expected NVIDIA
-   entries), reboot, then the full run without `--write-compliance-baseline`.
+### 1. The Orin Nano NITO does not work under the AGX badge
 
-Open points the run answers: the I2C bus number of J5 (`devname`), the merge
-of the FPA-4.A mux node with NVIDIA's disabled `tca9548@70` node, and whether
-the Nano's NITO works under the AGX badge.
+Argus looks for the NITO file whose embedded module name matches the module's
+badge; the file name does not matter. The Nano's `imx900_rear_framos.nito`,
+installed as `imx900_bottomleft_framos.nito`, is skipped ("No cameras
+available", `NvCameraIspGetNitoPathIfEnabled() returned error`). With
+`NVCAMERA_NITO_PATH` pointing at it, Argus loads it and streams mode 0 at
+72 fps, so the tuning itself is fine. Editing the embedded name (offset 0xc0)
+makes Argus reject the file as corrupt.
+
+`isp/imx900_bottomleft_framos.nito` was therefore converted on the AGX with
+NVIDIA's automatic conversion: camera hotfix installed, `IMX900_IRC650.isp`
+as `camera_overrides.isp`, `NVCAMERA_NITO_PATH=CONFIG`, `nvargus_nvraw
+--mode 0` and `--mode 5` (knob sets 0 and 5). The hotfix files were removed
+afterwards (`dpkg -V nvidia-l4t-camera` clean); the test ran with the stock
+camera libraries.
+
+### 2. Open points from the bring-up, answered
+
+- The FPA-4.A mux node merges with NVIDIA's disabled `tca9548@70` node; its
+  channels are buses 9–16 and J5 is bus 9, as the overlay's `devname`
+  expects.
+- The mode 5 Argus rate needs the faster VIC clock as on the Orin Nano
+  (finding 3 there); the AGX's VIC maximum is 729.6 MHz.
+
+## Not tested
+
+- Connectors J6–J8, 1/2-lane configurations, more than one camera at a time.
+- IMX900 modes other than the three full-resolution ones, trigger and sync
+  modes, image quality, long-term stability.

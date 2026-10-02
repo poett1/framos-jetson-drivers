@@ -35,7 +35,10 @@ l4t-r39.2.1 community port (2026-09-28)
         - tests/hw: pytest hardware test suite with per-board profiles
           (AGX Orin FPA-4.A/AGX J5 direct; Orin Nano/NX cam1 direct and GMSL3;
           Orin Nano Jetpack 6 reference)
-        - built and installed on AGX Orin; hardware test with FPA-4.A/AGX pending
+        - AGX Orin (stock Jetpack 7.2.1), IMX900 on FPA-4.A/AGX J5 (2026-10-02):
+          probe, raw V4L2 72/117/125 fps, Argus mode 0/5 at 72/117 fps with
+          isp/imx900_bottomleft_framos.nito (a NITO per badge: Argus matches
+          the badge stored in the file)
         - Orin Nano (stock Jetpack 7.2.1), IMX900 direct and GMSL3: probe,
           raw V4L2 72/117/125 fps, Argus with imx900_rear_framos.nito
           (mode 0 at 72 fps; mode 5 at 58.5 fps, as on Jetpack 6)

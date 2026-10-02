@@ -26,9 +26,9 @@ supports AGX Thor only.
   (next section). Hardware-tested on 2026-10-01 on an Orin Nano devkit Super
   with the IMX900 directly on FPA-A/P22 and over GMSL3: probe, raw V4L2 at
   72/117/125 fps and **Argus with a NITO file work** (mode 5 at 117 fps needs a faster VIC clock, see below); see
-  [TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md). Built and
-  installed on an AGX Orin devkit; the hardware test with the FPA-4.A/AGX is
-  pending ([TEST-RESULTS-l4t-r39.2.1-agx.md](TEST-RESULTS-l4t-r39.2.1-agx.md)).
+  [TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md). On 2026-10-02
+  the same on an AGX Orin devkit with the IMX900 on the FPA-4.A/AGX, J5
+  ([TEST-RESULTS-l4t-r39.2.1-agx.md](TEST-RESULTS-l4t-r39.2.1-agx.md)).
 - `tools/jetson-config-camera(-cli).py` work with the Jetpack 7 jetson-io and
   write a separate `FramosCamera` boot entry.
 - `tests/hw/`: pytest suite for testing a camera setup on the Jetson, see
