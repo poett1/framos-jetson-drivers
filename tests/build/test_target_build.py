@@ -70,3 +70,18 @@ def test_failed_install_rolls_back(tmp_path):
     assert not (mods / "updates/framos").exists()
     assert not (tmp_path / "framos.conf").exists()
     assert "stock modules" in out and "rolled back" in out
+
+
+def test_install_passes_only_existing_stock_symvers():
+    # an unquoted /usr/src/nvidia/*/Module.symvers reaches modversions.py as the literal
+    # pattern when nvidia-l4t-kernel-oot-headers is missing (FileNotFoundError)
+    body = _bash("declare -f install_oot_modules")
+    assert "/usr/src/nvidia/*" not in body
+    assert "--stock-symvers ${STOCK_SYMVERS}" in body
+
+
+@pytest.mark.skipif(not KO, reason="needs a built tree (target_build.sh check)")
+def test_camera_stack_leaks_no_variables():
+    # target_build.sh is sourced into the user's shell
+    rc, out = _bash_rc("_camera_stack > /dev/null; declare -p dep ko name 2>&1")
+    assert rc != 0 and "dep=" not in out and "ko=" not in out and "name=" not in out, out

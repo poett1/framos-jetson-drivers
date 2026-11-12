@@ -136,7 +136,7 @@ function _check_vermagic() {
 # alter symbol CRCs, CONFIG_MODVERSIONS)
 function _camera_stack() {
     local -A path=() deps=() selected=()
-    local ko name changed=1
+    local ko name dep changed=1
     while read -r ko; do
         name=$(basename ${ko} .ko | tr - _)
         path[${name}]=${ko}
@@ -207,7 +207,7 @@ function _rollback_install() {
 # install the camera stack into updates/framos, overriding the stock modules
 function install_oot_modules() {
     _preflight || return 1
-    local modules=($(_camera_stack)) ko name
+    local modules=($(_camera_stack))
     if [ ${#modules[@]} = 0 ]; then
         echo -e "${red}no built modules found; run build_oot_modules first${normal}"
         return 1
@@ -217,7 +217,7 @@ function install_oot_modules() {
     echo ; echo; echo -e "${yel}checking ${#modules[@]} modules against the stock modules ... ${normal}"
     python3 ${_script_dir}/modversions.py --install "${modules[@]}" \
         --our-symvers ${L4T_SOURCE}/nvidia-oot/Module.symvers ${L4T_SOURCE}/hwpm/drivers/tegra/hwpm/Module.symvers \
-        --stock-symvers ${MODULES_DIR}/build/Module.symvers /usr/src/nvidia/*/Module.symvers \
+        --stock-symvers ${STOCK_SYMVERS} \
         --stock-modules-dir ${MODULES_DIR}/updates --exclude-dir ${FRAMOS_MODULES_DIR} || return 1
 
     echo -e "${yel}out of tree kernel modules install ... ${normal}"
