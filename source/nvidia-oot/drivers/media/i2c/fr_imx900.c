@@ -627,6 +627,10 @@ static int imx900_update_framerate_range(struct tegracam_device *tc_dev)
 		priv->min_frame_length = IMX900_ROI_MODE_HEIGHT + gmrwt +
 						gmrwt2*2 + gmtwt + gsdly + 56;
 		break;
+	case IMX900_MODE_ROI_2048x1536:
+		priv->min_frame_length = IMX900_ROI2_MODE_HEIGHT + gmrwt +
+						gmrwt2*2 + gmtwt + gsdly + 56;
+		break;
 	case IMX900_MODE_SUBSAMPLING2_1032x776:
 		if (priv->chromacity == IMX900_COLOR) {
 			priv->min_frame_length = IMX900_SUBSAMPLING2_MODE_HEIGHT
@@ -2349,6 +2353,7 @@ static int imx900_configure_shutter(struct tegracam_device *tc_dev)
 		vint_en |= 0x1C;
 		break;
 	case IMX900_MODE_ROI_1920x1080:
+	case IMX900_MODE_ROI_2048x1536:
 		vint_en |= 0x1C;
 		break;
 	case IMX900_MODE_SUBSAMPLING2_1032x776:
@@ -2421,6 +2426,7 @@ static int imx900_check_unsupported_mode(struct camera_common_data *s_data,
 	switch (s_data->mode) {
 	case IMX900_MODE_2064x1552:
 	case IMX900_MODE_ROI_1920x1080:
+	case IMX900_MODE_ROI_2048x1536:
 		switch (mf->code) {
 		case MEDIA_BUS_FMT_SGBRG8_1X8:
 			mf->code = MEDIA_BUS_FMT_SRGGB8_1X8;
@@ -2585,6 +2591,7 @@ static int imx900_set_mode_additional(struct tegracam_device *tc_dev)
 				mode_table[IMX900_MODE_ALLPIXEL_ROI]);
 		break;
 	case IMX900_MODE_ROI_1920x1080:
+	case IMX900_MODE_ROI_2048x1536:
 		err = imx900_write_table(priv,
 				mode_table[IMX900_MODE_ALLPIXEL_ROI]);
 		break;
