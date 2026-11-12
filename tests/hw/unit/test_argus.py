@@ -54,3 +54,12 @@ def test_failure_report_has_output_tail_and_daemon_errors():
 def test_badge_mapping_warning_is_not_an_error():
     # seen with stock Jetpack 6 + .isp override while Argus streams fine
     assert daemon_errors("NvPclHwGetModuleList: WARNING: Could not map module to ISP config string\n") == []
+
+
+def test_daemon_log_covers_one_daemon_start_only():
+    # a --since taken before "systemctl restart" also caught the old daemon's
+    # shutdown errors and failed the next test
+    from lib.argus import daemon_log_cmd
+    cmd = daemon_log_cmd("2c0f14b246ec40468016b9e378df763a")
+    assert "_SYSTEMD_INVOCATION_ID=2c0f14b246ec40468016b9e378df763a" in cmd
+    assert "--since" not in cmd and "-u" not in cmd

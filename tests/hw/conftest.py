@@ -17,7 +17,7 @@ sys.path.insert(0, str(HW_DIR))  # "lib" package; pytest 6.2 has no pythonpath i
 
 from lib.profile import ProfileError, load_profile  # noqa: E402
 from lib.report import TestResult, render_markdown, write_results  # noqa: E402
-from lib import clocks, compliance, dt, kmsg, media, v4l2  # noqa: E402
+from lib import argus, clocks, compliance, dt, kmsg, media, v4l2  # noqa: E402
 from lib.sysinfo import install_type, l4t_release, repo_commit  # noqa: E402
 
 # per-session state; pytest 6.2 has no config.stash
@@ -179,16 +179,19 @@ def vic_max():
 @pytest.fixture
 def argus_daemon(sensor):
     """Restarts nvargus-daemon for each test (a failed capture session can leave it
-    unusable); returns a callable giving its log since the restart.
+    unusable); returns a callable giving the new daemon's log (by systemd
+    InvocationID, so errors the old instance logs while stopping do not count).
     Leaves the daemon as it was found (stopped again if it was not running), and
     sets bypass_mode back to 0: Argus leaves it at 1, after which raw V4L2 streams
     get no frames."""
     was_active = subprocess.run(["systemctl", "is-active", "--quiet", "nvargus-daemon"]).returncode == 0
-    since = f"@{int(time.time())}"
     subprocess.run(["systemctl", "restart", "nvargus-daemon"], check=True)
+    invocation = subprocess.run(["systemctl", "show", "-p", "InvocationID", "--value",
+                                 "nvargus-daemon"], capture_output=True, text=True,
+                                check=True).stdout.strip()
     time.sleep(2)
-    yield lambda: subprocess.run(["journalctl", "-u", "nvargus-daemon", "--since", since,
-                                  "-o", "cat", "--no-pager"], capture_output=True, text=True).stdout
+    yield lambda: subprocess.run(argus.daemon_log_cmd(invocation), capture_output=True,
+                                 text=True).stdout
     v4l2.set_ctrl(sensor.video, "bypass_mode", 0)
     if not was_active:
         subprocess.run(["systemctl", "stop", "nvargus-daemon"])

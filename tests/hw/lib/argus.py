@@ -44,6 +44,12 @@ def daemon_errors(log):
     return [line.strip() for line in log.splitlines() if ARGUS_ERROR_RE.search(line)]
 
 
+def daemon_log_cmd(invocation_id):
+    """journalctl command for the log of one nvargus-daemon start (systemd's
+    InvocationID), without what the previous instance logged while stopping."""
+    return ["journalctl", f"_SYSTEMD_INVOCATION_ID={invocation_id}", "-o", "cat", "--no-pager"]
+
+
 def failure_report(summary, output, errors, lines=30):
     """Summary, the last lines of the gst-launch output (stdout and stderr) and the
     nvargus-daemon errors, for an assertion message."""
