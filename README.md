@@ -90,6 +90,13 @@ conversion. NVIDIA's "Jetson Customer IQ Migration Tools" (camera hotfix,
 `nvcfg2nito`) do that on the Jetson from a Jetpack 6 `.isp` override; they are
 not part of this repository.
 
+Both NITO files hold tuning only for the two modes they were converted with:
+2064x1552 12-bit (`sensor-mode=0`) and 10-bit (`sensor-mode=6`). Argus gets no
+frames in any other mode ("GetKnobSetIdFromSensorModeIndex ... not found"),
+including the 2048x1536 modes (`sensor-mode=5`, 11, 17) and 1920x1080. Since
+the 2048x1536 modes were added, 10-bit full resolution is `sensor-mode=6`
+(it was 5), so pipelines that select mode 5 need updating.
+
 At the default clocks, `nvarguscamerasrc` delivers IMX900 mode 6 (2064x1552
 10-bit, 117 fps; mode 5 before the 2048x1536 modes were added) at 58.5 fps: the VIC clock, which converts each frame, stays
 too low. `sudo jetson_clocks` (CPU, GPU and EMC at maximum; VIC then scales up
