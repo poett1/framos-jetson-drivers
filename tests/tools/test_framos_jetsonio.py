@@ -72,3 +72,39 @@ def test_remove_boot_entry_without_entry_changes_nothing(tmp_path):
     f.write_text(STOCK)
     remove_boot_entry(str(f))
     assert f.read_text() == STOCK
+
+
+# "primary" as jetson-config-camera v2.0.0 left it: FDT and OVERLAYS added with sed
+OLD_TOOL = STOCK.replace(
+    "      APPEND ${cbootargs} root=PARTUUID=x rw\n",
+    "      APPEND ${cbootargs} root=PARTUUID=x rw\n"
+    "      FDT /boot/dtb/k.dtb\n"
+    "      OVERLAYS /boot/framos/dtbo/old_a.dtbo,/boot/framos/dtbo/old_b.dtbo\n")
+
+
+def test_remove_boot_entry_strips_old_tool_overlays_from_primary(tmp_path):
+    # uninstall deletes /boot/framos/dtbo; primary must not point into it afterwards
+    from framos_jetsonio import remove_boot_entry
+    f = tmp_path / "extlinux.conf"
+    f.write_text(OLD_TOOL)
+    remove_boot_entry(str(f))
+    s = f.read_text()
+    assert "/boot/framos/dtbo" not in s and "OVERLAYS" not in s
+    assert "FDT /boot/dtb/k.dtb" in s and "MENU LABEL primary kernel" in s
+
+
+def test_remove_boot_entry_keeps_other_overlays(tmp_path):
+    from framos_jetsonio import remove_boot_entry
+    f = tmp_path / "extlinux.conf"
+    f.write_text(OLD_TOOL.replace("/boot/framos/dtbo/old_b.dtbo", "/boot/other.dtbo"))
+    remove_boot_entry(str(f))
+    assert "      OVERLAYS /boot/other.dtbo\n" in f.read_text()
+
+
+def test_boot_entry_leaves_primary_as_stock_fallback(tmp_path):
+    f = tmp_path / "extlinux.conf"
+    f.write_text(OLD_TOOL)
+    write_boot_entry(str(f), "/boot/dtb/k.dtb", ["a.dtbo"], "FRAMOS camera")
+    primary = f.read_text().split("LABEL FramosCamera")[0]
+    assert "/boot/framos/dtbo" not in primary
+    assert "OVERLAYS /boot/framos/dtbo/a.dtbo" in f.read_text()

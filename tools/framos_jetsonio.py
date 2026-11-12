@@ -48,6 +48,7 @@ def write_boot_entry(extlinux_path, dtb, dtbos, menu_label):
     """Add or replace the FramosCamera entry and make it the default."""
     overlays = ",".join(f"{DTBO_DIR}/{d}" for d in dtbos)
     extlinux.add_entry(extlinux_path, BOOT_LABEL, menu_label, dtb, overlays, True)
+    _strip_framos_overlays(extlinux_path)
     sig = extlinux_path + ".sig"
     if os.path.exists(sig):
         os.rename(sig, sig + ".jetson-io-backup")
@@ -57,9 +58,40 @@ def write_boot_entry(extlinux_path, dtb, dtbos, menu_label):
 _ENTRY_KEYWORDS = ("APPEND", "FDT", "FDTDIR", "INITRD", "LINUX", "MENU", "OVERLAYS")
 
 
+def _strip_framos_overlays(extlinux_path):
+    """Drop the DTBO_DIR overlays from every entry but FramosCamera, and an OVERLAYS line
+    left empty. jetson-config-camera v2.0.0 put them into "primary" with sed; without
+    this, "primary" is no stock fallback and points into DTBO_DIR after uninstall."""
+    with open(extlinux_path) as f:
+        lines = f.readlines()
+    out, label = [], None
+    for line in lines:
+        words = line.split()
+        if words[:1] == ["LABEL"]:
+            label = words[1] if len(words) > 1 else ""
+        elif words[:1] == ["OVERLAYS"] and label != BOOT_LABEL:
+            overlays = [o for o in "".join(words[1:]).split(",") if o]
+            keep = [o for o in overlays if not o.startswith(DTBO_DIR + "/")]
+            if keep != overlays:
+                if not keep:
+                    continue
+                indent = line[:len(line) - len(line.lstrip())]
+                line = f"{indent}OVERLAYS {','.join(keep)}\n"
+        out.append(line)
+    if out != lines:
+        with open(extlinux_path, "w") as f:
+            f.writelines(out)
+
+
 def remove_boot_entry(extlinux_path):
     """Remove the FramosCamera entry; if it was the default, make "primary" (or the first
-    remaining entry) the default again. No change if there is no such entry."""
+    remaining entry) the default again. Also drops DTBO_DIR overlays left in other
+    entries by the old tool. No change if there is neither."""
+    _remove_entry(extlinux_path)
+    _strip_framos_overlays(extlinux_path)
+
+
+def _remove_entry(extlinux_path):
     with open(extlinux_path) as f:
         lines = f.readlines()
     out, labels, skipping = [], [], False
