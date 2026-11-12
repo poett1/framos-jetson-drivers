@@ -138,3 +138,9 @@ def test_control_calls_have_timeouts(monkeypatch):
     v4l2.set_ctrl("/dev/video0", "frame_rate", 1)
     v4l2.snapshot_ctrls("/dev/video0")
     assert seen and all(t for t in seen)
+
+
+def test_parse_ctrls_reads_menu_controls():
+    from lib.v4l2 import parse_ctrls
+    assert parse_ctrls("data_rate: 0 (2376 Mbps/lane)\nframe_rate: 72000000\n") == {
+        "data_rate": 0, "frame_rate": 72000000}

@@ -40,7 +40,7 @@ def _fmt(mode):
 def parse_ctrls(text):
     ctrls = {}
     for line in text.splitlines():
-        m = re.match(r"^\s*(\w+):\s*(-?\d+)\s*$", line)
+        m = re.match(r"^\s*(\w+):\s*(-?\d+)(?:\s+\(.*\))?\s*$", line)
         if m:
             ctrls[m.group(1)] = int(m.group(2))
     return ctrls
