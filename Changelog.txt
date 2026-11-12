@@ -69,3 +69,10 @@ l4t-r39.2.1 community port (2026-09-28)
           v2.0.0 tool put into the primary boot entry are removed
         - tests/hw: Argus daemon log per InvocationID (no errors of the
           stopping daemon); three frame-rate stream tests
+    - vi5_fops: no kernel oops when capturing into DMABUF buffers
+      (NvBufSurface/NvMap); the embedded data info is written only through a
+      kernel mapping (2026-11-12)
+    - fr_imx900: 2048x1536 right after full resolution in each bit-depth block,
+      so 2048x1536 10-bit is Argus mode 7 (12-bit: mode 1); AGX NITO
+      regenerated for modes 0, 1, 2, 3, 6, 7; 1920x1080 10-bit no longer in
+      Argus (2026-11-12)
