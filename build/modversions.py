@@ -60,7 +60,10 @@ def check_imports(imports, installed, ours, stock):
                 problems.append(f"{module}: {sym} is exported by no module")
             elif exporter in installed:
                 continue
-            elif sym in stock and stock[sym][0] != crc:
+            elif sym not in stock:
+                problems.append(f"{module}: {sym} comes from {exporter}, "
+                                f"which is neither installed nor stock")
+            elif stock[sym][0] != crc:
                 problems.append(f"{module}: {sym} has CRC 0x{crc:08x}, "
                                 f"stock {stock[sym][1]} exports 0x{stock[sym][0]:08x}")
     return problems

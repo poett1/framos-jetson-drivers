@@ -56,3 +56,12 @@ def test_stock_module_depending_on_replaced_module_is_reported():
     deps = {"nvgpu": ["host1x"], "some_stock": ["tegra_camera", "videodev"]}
     assert check_reverse_deps(deps, {"tegra_camera", "fr_imx900"}) == [
         "stock some_stock depends on replaced tegra_camera"]
+
+
+def test_import_from_our_module_that_is_not_installed_nor_stock_is_reported():
+    # fr_x imports from our hwpm build, which _camera_stack leaves out and stock does not
+    # ship: modprobe fr_x would fail with "Unknown symbol"
+    imports = {"fr_x": {"tegra_hwpm_x": 0x5}}
+    ours = {"tegra_hwpm_x": (0x5, "nvhwpm")}
+    problems = check_imports(imports, installed={"fr_x"}, ours=ours, stock={})
+    assert problems == ["fr_x: tegra_hwpm_x comes from nvhwpm, which is neither installed nor stock"]
