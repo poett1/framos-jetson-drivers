@@ -102,16 +102,6 @@ is out of Argus' reach. Pipelines written for older versions of this branch
 need new mode numbers: 2048x1536 12-bit is `sensor-mode=1`, 10-bit `7`.
 How the AGX file was made: [TEST-RESULTS-l4t-r39.2.1-agx.md](TEST-RESULTS-l4t-r39.2.1-agx.md).
 
-A board that ran an OE4T/Yocto image before keeps that image's UEFI firmware
-in QSPI when only the SD card or NVMe is flashed with Jetpack. Its built-in
-device tree then applies under the extlinux overlays, e.g. a GMSL setup from
-back then. `sudo dmidecode -s bios-version` shows it: stock is
-`39.2.1-gcid-46758480`, an OE4T build `v39.2.1`. Jetpack's capsule puts the
-stock firmware into QSPI on the next boot:
-`sudo nv_bootloader_capsule_updater.sh -q /opt/ota_package/t23x/TEGRA_BL_3767_super.Cap`
-(the capsule for the board's TNSPEC in `/etc/nv_boot_control.conf`; here the
-Orin Nano devkit Super).
-
 At the default clocks, `nvarguscamerasrc` delivers IMX900 mode 6 (2064x1552
 10-bit, 117 fps; mode 5 before the 2048x1536 modes were added) at 58.5 fps: the VIC clock, which converts each frame, stays
 too low. `sudo jetson_clocks` (CPU, GPU and EMC at maximum; VIC then scales up

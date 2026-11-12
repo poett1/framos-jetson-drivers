@@ -350,18 +350,6 @@ Orin Nano devkit Super, stock Jetpack 7.2.1, IMX900 directly on FPA-A/P22
 cam1, 4 lanes; `l4t-r39.2.1` at d850530 (2048x1536 modes, mode order
 2064x1552, 2048x1536, 1920x1080, 1032x776, 2064x154, 1024x720 per bit depth).
 
-**GMSL nodes from the firmware.** With the direct boot entry (FPA-A/P22 +
-IMX900-CAM1-4Lane, no GMSL overlay) the sensor still probed over GMSL and
-failed (`gmsl config failed`, error -121). The live device tree had the
-serializer/deserializer nodes of the GMSL overlay, although neither the boot
-entry, the base DTB, the overlay files, the SD card partitions nor the UEFI
-variables contained them; they stayed with the GMSL overlay file removed.
-The UEFI firmware was an OE4T build (`bios-version` `v39.2.1`, 08/18/2026)
-left in QSPI from the Yocto test of 2026-09-28. Jetpack's capsule
-`TEGRA_BL_3767_super.Cap` (via `nv_bootloader_capsule_updater.sh`) replaced
-it with the stock firmware (`39.2.1-gcid-46758480`, slot A; slot B keeps the
-old one); after that the sensor probes over MIPI.
-
 **NITO.** `isp/imx900_rear_framos.nito` was regenerated on this board as on
 the AGX (TEST-RESULTS-l4t-r39.2.1-agx.md), for modes 0, 1, 2, 3, 6, 7. The
 config-mode Argus sessions reported `INVALID_SETTINGS` / `SCF Error 15` but

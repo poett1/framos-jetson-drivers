@@ -78,5 +78,4 @@ l4t-r39.2.1 community port (2026-09-28)
       Argus (2026-11-12)
     - Orin Nano (2026-11-12): imx900_rear_framos.nito regenerated for modes
       0, 1, 2, 3, 6, 7; Nano direct profile with the 2048x1536 V4L2 modes and
-      Argus modes 0, 1, 2, 6, 7; README: OE4T firmware left in QSPI and the
-      capsule that replaces it
+      Argus modes 0, 1, 2, 6, 7
