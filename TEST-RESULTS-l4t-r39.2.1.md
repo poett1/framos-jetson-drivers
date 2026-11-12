@@ -344,6 +344,29 @@ automatically from it. Capture was clean in this test anyway. If CSI errors
 appear with other cables or modes, correcting this value, or setting
 `cil_settletime`, is a place to start.
 
+## 2048x1536 modes and NITO on the Orin Nano (2026-11-12)
+
+Orin Nano devkit Super, stock Jetpack 7.2.1, IMX900 directly on FPA-A/P22
+cam1, 4 lanes; `l4t-r39.2.1` at d850530 (2048x1536 modes, mode order
+2064x1552, 2048x1536, 1920x1080, 1032x776, 2064x154, 1024x720 per bit depth).
+
+**NITO.** `isp/imx900_rear_framos.nito` was regenerated on this board as on
+the AGX (TEST-RESULTS-l4t-r39.2.1-agx.md), for modes 0, 1, 2, 3, 6, 7. The
+config-mode Argus sessions reported `INVALID_SETTINGS` / `SCF Error 15` but
+wrote all six binary cfgs: a failed Argus session earlier in that boot had
+left the camera in the Error 15 state (finding 6). After a reboot the new
+NITO works in all tested modes.
+
+`tests/hw` (nano-p3768-cam1-direct-imx900-4lane), fresh boot: 112 passed,
+4 accepted compliance failures, 1 failure:
+
+| Check | Result |
+|---|---|
+| Raw V4L2, 2048x1536 12/10/8-bit | 72.71 / 118.12 / 126.33 fps, no gaps |
+| Raw V4L2, 2064x1552 12/10/8-bit | 72.03 / 117.03 / 125.03 fps |
+| Argus modes 0, 1, 2, 6, 7 | 72.04 / 72.06 / 99.97 / 115.4 / 117.04 fps (VIC 435 MHz) |
+| `test_frame_not_constant[8-bit 2048]` | ❌ stddev 0.8 (minimum 1.0): the scene was dark (means at the black level); the 2048x1536 crop leaves out the frame border, which carries most of the variation of the dark full frames |
+
 ## Not tested
 
 - Sensors other than the IMX900. IMX900 modes below full resolution; the

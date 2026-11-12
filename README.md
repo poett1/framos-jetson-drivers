@@ -93,10 +93,10 @@ not part of this repository.
 Argus uses tuning only for sensor modes 0-7, and a NITO holds at most eight
 knob sets. The DT modes per bit depth are, in this order: 2064x1552,
 2048x1536, 1920x1080, 1032x776, 2064x154, 1024x720 (12-bit mode0-5, 10-bit
-mode6-11, 8-bit mode12-17). `imx900_bottomleft_framos.nito` (AGX) covers modes
-0, 1, 2, 3, 6 and 7: 2064x1552, 2048x1536, 1920x1080 and 1032x776 at 12 bit,
-2064x1552 and 2048x1536 at 10 bit. `imx900_rear_framos.nito` (Orin Nano/NX)
-covers modes 0 and 6 only. Argus gets no frames in other modes
+mode6-11, 8-bit mode12-17). Both NITO files, `imx900_bottomleft_framos.nito`
+(AGX) and `imx900_rear_framos.nito` (Orin Nano/NX), cover modes 0, 1, 2, 3, 6
+and 7: 2064x1552, 2048x1536, 1920x1080 and 1032x776 at 12 bit, 2064x1552 and
+2048x1536 at 10 bit. Argus gets no frames in other modes
 ("GetKnobSetIdFromSensorModeIndex ... not found"); 1920x1080 10-bit (mode 8)
 is out of Argus' reach. Pipelines written for older versions of this branch
 need new mode numbers: 2048x1536 12-bit is `sensor-mode=1`, 10-bit `7`.
