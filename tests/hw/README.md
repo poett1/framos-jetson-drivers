@@ -45,8 +45,8 @@ frames); the suite restores them afterwards and runs compliance last.
 
 The Argus tests pin the VIC clock at its maximum (`min_freq` = `max_freq` of
 `/sys/class/devfreq/*.vic`) and restore it afterwards: at the governor's default
-clock, `nvarguscamerasrc` delivers only every second frame of IMX900 mode 5
-(58.5 instead of 117 fps). The summary shows the pinned clock as `vic_mhz`.
+clock, `nvarguscamerasrc` delivers only every second frame of IMX900 mode 6,
+2064x1552 10-bit (58.5 instead of 117 fps; mode 5 before the 2048x1536 modes). The summary shows the pinned clock as `vic_mhz`.
 
 Tests that need the camera are skipped, not
 failed, when the sensor did not probe.

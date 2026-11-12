@@ -60,8 +60,40 @@ camera libraries.
 - The mode 5 Argus rate needs the faster VIC clock as on the Orin Nano
   (finding 3 there); the AGX's VIC maximum is 729.6 MHz.
 
+## 2048x1536 mode (2026-11-12)
+
+The 2048x1536 ROI mode of framos-rpi-drivers (Sony's recommended recording
+area, 8 px in from each edge) was added in 12, 10 and 8 bit. The DT modes are
+now `mode0`-`mode5` 12-bit, `mode6`-`mode11` 10-bit and `mode12`-`mode17`
+8-bit, each block ordered 2064x1552, 1920x1080, 1032x776, 2064x154, 1024x720,
+2048x1536. 10-bit full resolution moved from mode 5 to mode 6; the results
+above use the old numbers.
+
+Same board and boot entry, fresh boot, `tests/hw` with the AGX profile
+(results `agx-fpa4a-j5-direct-imx900-4lane-20261112-134026`): 104 passed,
+4 accepted compliance failures, 1 failure (Argus mode 5, below), since
+recorded as a known failure.
+
+| Mode | Format | Maximum rate (control) | Measured |
+|---|---|---|---|
+| 2048x1536 12-bit (DT mode 5) | RG12 | 72.7 fps | 72.71 fps, no gaps |
+| 2048x1536 10-bit (DT mode 11) | RG10 | 118.1 fps | 118.12 fps, no gaps |
+| 2048x1536 8-bit (DT mode 17) | RGGB | 126.3 fps | 126.32 fps, no gaps |
+
+- The 2064x1552 modes are unchanged: 72.03 / 117.03 / 125.03 fps.
+- A new mode starts at its DT default rate (72 / 117 / 125 fps, the
+  full-resolution values).
+- A GBRG request at 2048x1536 is changed to RGGB with the driver's warning, as
+  for 2064x1552.
+- Argus: mode 0 at 72.0 fps and mode 6 (10-bit full resolution) at 117.08 fps
+  with `imx900_bottomleft_framos.nito`. Mode 5 (2048x1536) gets no frames:
+  `GetKnobSetIdFromSensorModeIndex: Sensor mode index 5, knobSetId 0 not
+  found`. The NITO has knob sets only for the two modes it was converted with.
+  Mode 1 (1920x1080), which predates this change, fails the same way. Argus at
+  2048x1536 needs a NITO converted with that mode as well.
+
 ## Not tested
 
 - Connectors J6–J8, 1/2-lane configurations, more than one camera at a time.
-- IMX900 modes other than the three full-resolution ones, trigger and sync
-  modes, image quality, long-term stability.
+- IMX900 modes other than the full-resolution and 2048x1536 ones, trigger and
+  sync modes, mono sensors, image quality, long-term stability.

@@ -50,3 +50,10 @@ l4t-r39.2.1 community port (2026-09-28)
         - fix: fr_imx900 starts a new mode at its own default frame rate
           (a 12/10/8-bit switch kept the previous mode's rate; Argus mode 5
           started at 72 fps timing)
+    - fr_imx900: 2048x1536 ROI mode, 12/10/8-bit, from framos-rpi-drivers
+      (2026-11-12)
+        - DT modes renumbered: 12-bit mode0-5, 10-bit mode6-11, 8-bit
+          mode12-17; 10-bit full resolution is now mode 6 (was 5)
+        - AGX Orin: raw V4L2 72.7 / 118.1 / 126.3 fps; Argus needs a NITO
+          converted with the new mode (the current one has knob sets for
+          2064x1552 12/10-bit only)

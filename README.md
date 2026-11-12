@@ -25,7 +25,7 @@ supports AGX Thor only.
   drivers build and install on the Jetson itself with `build/target_build.sh`
   (next section). Hardware-tested on 2026-10-01 on an Orin Nano devkit Super
   with the IMX900 directly on FPA-A/P22 and over GMSL3: probe, raw V4L2 at
-  72/117/125 fps and **Argus with a NITO file work** (mode 5 at 117 fps needs a faster VIC clock, see below); see
+  72/117/125 fps and **Argus with a NITO file work** (10-bit full resolution at 117 fps needs a faster VIC clock, see below); see
   [TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md). On 2026-10-02
   the same on an AGX Orin devkit with the IMX900 on the FPA-4.A/AGX, J5
   ([TEST-RESULTS-l4t-r39.2.1-agx.md](TEST-RESULTS-l4t-r39.2.1-agx.md)).
@@ -90,8 +90,8 @@ conversion. NVIDIA's "Jetson Customer IQ Migration Tools" (camera hotfix,
 `nvcfg2nito`) do that on the Jetson from a Jetpack 6 `.isp` override; they are
 not part of this repository.
 
-At the default clocks, `nvarguscamerasrc` delivers IMX900 mode 5 (2064x1552
-10-bit, 117 fps) at 58.5 fps: the VIC clock, which converts each frame, stays
+At the default clocks, `nvarguscamerasrc` delivers IMX900 mode 6 (2064x1552
+10-bit, 117 fps; mode 5 before the 2048x1536 modes were added) at 58.5 fps: the VIC clock, which converts each frame, stays
 too low. `sudo jetson_clocks` (CPU, GPU and EMC at maximum; VIC then scales up
 by itself) or pinning VIC alone gives 117 fps:
 
