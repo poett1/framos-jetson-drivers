@@ -25,3 +25,47 @@ l4t-r39.2.1 community port (2026-09-28)
         - V4L2 controls start at their minimum (1.5 fps) until set
       see TEST-RESULTS-l4t-r39.2.1.md
     - fr_imx900: controls start at their DT defaults (72 fps / 10 ms) instead of the minimum
+    - stock Jetpack 7.2.1 (2026-09-30):
+        - on-target build: NVIDIA's 39.2.1 top-level OOT Makefile,
+          build/target_build.sh rewritten (build, check, install, uninstall)
+        - install of the camera stack into updates/framos with a depmod
+          override and a symbol CRC check; stock packages untouched
+        - jetson-config-camera tools: Jetpack 7 jetson-io, separate
+          FramosCamera boot entry, Orin Nano/NX header name
+        - tests/hw: pytest hardware test suite with per-board profiles
+          (AGX Orin FPA-4.A/AGX J5 direct; Orin Nano/NX cam1 direct and GMSL3;
+          Orin Nano Jetpack 6 reference)
+        - AGX Orin (stock Jetpack 7.2.1), IMX900 on FPA-4.A/AGX J5 (2026-10-02):
+          probe, raw V4L2 72/117/125 fps, Argus mode 0/5 at 72/117 fps with
+          isp/imx900_bottomleft_framos.nito (a NITO per badge: Argus matches
+          the badge stored in the file)
+        - Orin Nano (stock Jetpack 7.2.1), IMX900 direct and GMSL3: probe,
+          raw V4L2 72/117/125 fps, Argus with imx900_rear_framos.nito
+          (mode 0 at 72 fps; mode 5 at 58.5 fps, as on Jetpack 6)
+        - Argus mode 5 at half rate: the VIC clock stays too low for
+          nvarguscamerasrc; 117 fps with jetson_clocks or VIC pinned at its
+          maximum (README); tests/hw pins VIC during the Argus tests
+        - compared with a stock Jetpack 6.2.1 + FRAMOS l4t-r36.4.4 reference
+        - fix: depmod overrides name the module file (kmod 31)
+        - fix: fr_imx900 starts a new mode at its own default frame rate
+          (a 12/10/8-bit switch kept the previous mode's rate; Argus mode 5
+          started at 72 fps timing)
+    - fr_imx900: 2048x1536 ROI mode, 12/10/8-bit, from framos-rpi-drivers
+      (2026-11-12)
+        - DT modes renumbered: 12-bit mode0-5, 10-bit mode6-11, 8-bit
+          mode12-17; 10-bit full resolution is now mode 6 (was 5)
+        - AGX Orin: raw V4L2 72.7 / 118.1 / 126.3 fps
+        - isp/imx900_bottomleft_framos.nito regenerated: Argus runs DT modes
+          0, 1, 2, 5, 6, 7 (2064x1552, 1920x1080, 1032x776, 2048x1536 12-bit;
+          2064x1552, 1920x1080 10-bit); Argus uses tuning for modes 0-7 only
+    - review fixes (PR 1):
+        - fr_imx900: a frame_rate set between streams is kept across a mode
+          switch; DT default rates cached at probe (a low data rate no longer
+          lowers them); one frame-length write per stream start
+        - target_build.sh / modversions.py: no traceback without the OOT
+          headers package; imports from modules neither installed nor stock
+          are reported; no variables leak into the calling shell
+        - jetson-config tools / uninstall: FRAMOS overlays that the old
+          v2.0.0 tool put into the primary boot entry are removed
+        - tests/hw: Argus daemon log per InvocationID (no errors of the
+          stopping daemon); three frame-rate stream tests

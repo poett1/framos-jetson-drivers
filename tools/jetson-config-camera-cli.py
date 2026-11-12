@@ -5,53 +5,30 @@ import sys
 import importlib
 import re
 import os
-import subprocess
 
 sys.path.insert(1, "/opt/nvidia/jetson-io")
-from Jetson import board
 from Utils import dtc
-import Headers
+from framos_jetsonio import FramosBoard, write_boot_entry
 config_by_hardware = importlib.import_module("config-by-hardware")
 
 extlinux_cfg = "/boot/extlinux/extlinux.conf"
 dtbo_default_path = "/boot/framos/dtbo/"
-dtbo_default_path_esc = "\/boot\/framos\/dtbo\/"
 
-
-class Board(board.Board):
-    def __init__(self):
-        super().__init__()
-        dtbos = dtc.find_compatible_dtbo_files(self.compat.split(),
-                                               "/boot/framos/dtbo")
-        self.board_headers = board._board_load_headers(Headers.HDRS, dtbos)
 
 def dtbo_file_exists(file):
     return os.path.exists(dtbo_default_path + file)
 
-def update_base_fdt(base_fdt):
-        updateCmd = "sed -i '/MENU LABEL primary kernel/{N;N;s/$/\\n \ \ \ \ \ FDT \/boot\/dtb\/"
-        updateCmd += base_fdt
-        updateCmd += "/}' "
-        updateCmd += extlinux_cfg
-        subprocess.run([updateCmd], shell=True)
-
-def prepare_dt_overlays():
-        updateCmd = "sed -i '/FDT/{s/$/\\n \ \ \ \ \ OVERLAYS/}' "
-        updateCmd += extlinux_cfg
-        subprocess.run([updateCmd], shell=True)
-
 def main():
-    parser = argparse.ArgumentParser(None, None, "Jetson Config Camera v2.0.0")
+    parser = argparse.ArgumentParser(None, None, "Jetson Config Camera v2.1.0")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("-n", "--name", nargs='*', help="\"<csi-module>\" ...")
     group.add_argument("-l", "--list", help="List of CSI modules", action='store_true')
     args = parser.parse_args()
     board_dtbo_template = ""
-    base_dtb = ""
     selected_fpa = ""
     fpa_dtbo = ""
 
-    jetson = Board()
+    jetson = FramosBoard()
     jetson.get_board_headers()
     if "Jetson AGX CSI Connector" in jetson.board_headers:
         header = "Jetson AGX CSI Connector"
@@ -63,7 +40,6 @@ def main():
         print("Unknown board or no overlays found!")
         sys.exit(1)
 
-    base_dtb = subprocess.check_output(["basename /boot/dtb/*"], shell=True).decode('utf-8').replace('\n', '')
     dtbos = []
 
     if args.list:
@@ -107,24 +83,9 @@ def main():
                 print("This script cannot continue.")
                 sys.exit(1)
 
-        FDTentryExists = subprocess.check_output(['cat /boot/extlinux/extlinux.conf | grep "FDT" | wc -l'], shell=True)
-        if FDTentryExists == b'0\n':
-            update_base_fdt(base_dtb)
-
-        overlayEntryExists = subprocess.check_output(['cat /boot/extlinux/extlinux.conf | grep "OVERLAYS" | wc -l'], shell=True)
-        if overlayEntryExists == b'0\n':
-            prepare_dt_overlays()
-
-        final_dtbo_configuration = ""
-        for dtbo in dtbos:
-            final_dtbo_configuration += dtbo_default_path_esc
-            final_dtbo_configuration += dtbo
-            final_dtbo_configuration += ","
-        final_dtbo_configuration = final_dtbo_configuration[:-1]
-        updateCmd = f"sed -i 's/.*OVERLAYS.*/\ \ \ \ \ \ OVERLAYS {final_dtbo_configuration}/' "
-        updateCmd += extlinux_cfg
-        subprocess.run([updateCmd], shell=True)
-
+        names = [dtc.get_prop_value(dtbo_default_path + dtbo, '/', 'overlay-name', 0) or dtbo
+                 for dtbo in dtbos]
+        write_boot_entry(extlinux_cfg, jetson.dtb, dtbos, "FRAMOS: " + ", ".join(names))
 
         print(f"{extlinux_cfg} updated.")
         print("Reboot the System to apply changes.")

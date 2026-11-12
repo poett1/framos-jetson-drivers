@@ -18,16 +18,109 @@ supports AGX Thor only.
     as in l4t-r36.4.4.
 - Build-tested on 2026-09-25 with OE4T meta-tegra (L4T 39.2.1, kernel
   6.8.12): all 24 driver modules and 192 overlays build.
-- Hardware-tested on 2026-09-28 on an Orin Nano devkit Super with an IMX900
-  over GMSL3 (fr_fpa_a_p22 + fr_imx900-cam1-4lane + fr_cam1-gmsl). The sensor
-  probes, and raw V4L2 capture of 2064x1552 RGGB12 runs at 60 fps. **Argus does
-  not work yet:** Jetpack 7.2 requires a NITO tuning file for the IMX900, and
-  V4L2 controls are 64-bit (use `v4l2-ctl`, not `v4l2src extra-controls`). See
-  [TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md).
-- `isp/`, `tools/`, `firmware/` and `build/` are carried unchanged from
-  l4t-r36.4.4. The ISP override files are the Jetpack 6 ones (there are no
-  .nito files for Jetpack 7), and the target/cross-compile scripts have not
-  been adapted to 39.2.1. The procedure below still describes Jetpack 6.
+- Hardware-tested on 2026-09-28 on an Orin Nano devkit Super with a Yocto
+  image, IMX900 over GMSL3. V4L2 controls are 64-bit (use `v4l2-ctl`, not
+  `v4l2src extra-controls`).
+- **Stock Jetpack 7.2.1** (Ubuntu 24.04, kernel `6.8.12-1021-tegra`): the
+  drivers build and install on the Jetson itself with `build/target_build.sh`
+  (next section). Hardware-tested on 2026-10-01 on an Orin Nano devkit Super
+  with the IMX900 directly on FPA-A/P22 and over GMSL3: probe, raw V4L2 at
+  72/117/125 fps and **Argus with a NITO file work** (10-bit full resolution at 117 fps needs a faster VIC clock, see below); see
+  [TEST-RESULTS-l4t-r39.2.1.md](TEST-RESULTS-l4t-r39.2.1.md). On 2026-10-02
+  the same on an AGX Orin devkit with the IMX900 on the FPA-4.A/AGX, J5
+  ([TEST-RESULTS-l4t-r39.2.1-agx.md](TEST-RESULTS-l4t-r39.2.1-agx.md)).
+- `tools/jetson-config-camera(-cli).py` work with the Jetpack 7 jetson-io and
+  write a separate `FramosCamera` boot entry.
+- `tests/hw/`: pytest suite for testing a camera setup on the Jetson, see
+  [tests/hw/README.md](tests/hw/README.md).
+- `isp/` and `firmware/` are carried unchanged from l4t-r36.4.4. The ISP
+  override files are the Jetpack 6 ones (Jetpack 7.2 needs .nito files), and
+  `build/cross-compile_build.sh` has not been adapted to 39.2.1.
+
+## Build and install on stock Jetpack 7.2.1
+
+On the Jetson, with this branch checked out:
+
+```
+sudo apt-get install build-essential device-tree-compiler \
+    nvidia-l4t-kernel-headers nvidia-l4t-kernel-oot-headers
+source build/target_build.sh      # prints the commands below
+check                             # build all modules and overlays (about 3 min on AGX Orin)
+install_all                       # install overlays and camera stack (sudo)
+```
+
+| Command | Does |
+|---|---|
+| `build_oot_modules`, `build_dtree`, `build_all` | build the OOT modules (NVIDIA's 39.2.1 top-level `source/Makefile`), the FRAMOS overlays, or both |
+| `check` | refuses to build for a kernel other than the running one, then `build_all` |
+| `install_dtree` | overlays to `/boot/framos/dtbo/` |
+| `install_oot_modules` | the `fr_*` modules, `tegra-camera` and every stock module that depends on them (42 modules) to `/lib/modules/<kernel>/updates/framos/`, with `/etc/depmod.d/framos.conf` overriding the stock ones; first checks the symbol CRCs against the stock modules |
+| `install_all` | both installs |
+| `uninstall` | removes both; after a reboot the stock modules are used again |
+
+The stock `.deb` files are not modified, so `apt upgrade` does not undo the
+install; a kernel update needs a rebuild. The build warns that the compiler
+(gcc 13.3) differs from the kernel's (gcc 13.2); that is expected with the
+Ubuntu 24.04 toolchain.
+
+Then select the camera configuration and reboot:
+
+```
+sudo python3 tools/jetson-config-camera-cli.py -n "Framos FPA-4.A/AGX" "Framos IMX900-J5-4Lane"
+sudo python3 tools/jetson-config-camera.py      # interactive alternative
+```
+
+Both write a boot entry `FramosCamera` into `/boot/extlinux/extlinux.conf`
+and make it the default. The stock `primary` entry is left unchanged and can
+be picked in the boot menu.
+
+For Argus, Jetpack 7.2 needs a NITO tuning file for the camera module's badge
+in `/var/nvidia/nvcam/settings/`. `isp/` has two for the IMX900, converted from
+`IMX900_IRC650.isp`:
+
+```
+sudo install -m 644 isp/imx900_rear_framos.nito /var/nvidia/nvcam/settings/        # Orin Nano/NX cam1
+sudo install -m 644 isp/imx900_bottomleft_framos.nito /var/nvidia/nvcam/settings/  # AGX Orin FPA-4.A/AGX J5
+```
+
+Argus matches the badge stored inside the file, not the file name: a copy of
+one NITO renamed to another badge is not found ("No cameras available"), and
+editing the name inside makes it "corrupt". Each badge needs its own
+conversion. NVIDIA's "Jetson Customer IQ Migration Tools" (camera hotfix,
+`nvcfg2nito`) do that on the Jetson from a Jetpack 6 `.isp` override; they are
+not part of this repository.
+
+Argus uses tuning only for sensor modes 0-7, and a NITO holds at most eight
+knob sets. `imx900_bottomleft_framos.nito` (AGX) covers modes 0, 1, 2, 5, 6
+and 7: 2064x1552, 1920x1080, 1032x776 and 2048x1536 at 12 bit, 2064x1552 and
+1920x1080 at 10 bit. `imx900_rear_framos.nito` (Orin Nano/NX) covers modes 0
+and 6 only. Argus gets no frames in other modes ("GetKnobSetIdFromSensorModeIndex
+... not found"). Since the 2048x1536 modes were added, 10-bit full resolution
+is `sensor-mode=6` (it was 5), so pipelines that select mode 5 need updating.
+How the AGX file was made: [TEST-RESULTS-l4t-r39.2.1-agx.md](TEST-RESULTS-l4t-r39.2.1-agx.md).
+
+At the default clocks, `nvarguscamerasrc` delivers IMX900 mode 6 (2064x1552
+10-bit, 117 fps; mode 5 before the 2048x1536 modes were added) at 58.5 fps: the VIC clock, which converts each frame, stays
+too low. `sudo jetson_clocks` (CPU, GPU and EMC at maximum; VIC then scales up
+by itself) or pinning VIC alone gives 117 fps:
+
+```
+echo $(cat /sys/class/devfreq/15340000.vic/max_freq) | \
+    sudo tee /sys/class/devfreq/15340000.vic/min_freq
+```
+
+Neither setting survives a reboot.
+
+After an Argus session, set `v4l2-ctl -d /dev/video0 -c bypass_mode=0` before
+capturing with raw V4L2 (Argus leaves it at 1, and raw V4L2 then gets no
+frames).
+
+Run `tests/hw` ([tests/hw/README.md](tests/hw/README.md)) on a freshly booted
+board to check a setup. If a direct connection loses stream starts
+(`corr_err` in the kernel log), try another flex cable first: at 2376
+Mbps/lane a marginal cable shows up long before it does on a Raspberry Pi.
+
+The procedure further below describes Jetpack 6.
 
 
 # Short procedure

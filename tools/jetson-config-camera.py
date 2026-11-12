@@ -6,25 +6,15 @@ import re
 import sys
 import math
 import importlib
-import subprocess
 
 sys.path.insert(1, "/opt/nvidia/jetson-io")
-from Jetson import board
 from Utils import dtc
-import Headers
+from framos_jetsonio import DTBO_DIR, FramosBoard, write_boot_entry
 jetsonio = importlib.import_module("jetson-io")
 
 
 def lanes_to_string(lanes):
     return f"{lanes} lane" if lanes == "1" else f"{lanes} lanes"
-
-
-class Board(board.Board):
-    def __init__(self):
-        super().__init__()
-        dtbos = dtc.find_compatible_dtbo_files(self.compat.split(),
-                                               "/boot/framos/dtbo")
-        self.board_headers = board._board_load_headers(Headers.HDRS, dtbos)
 
 
 class PortConfiguration(object):
@@ -381,14 +371,13 @@ class MainMenu(object):
         self.menu_default = []
         self.sensor_menus = {}
         self.port_menus = {}
-        self.jetson = Board()
+        self.jetson = FramosBoard()
         self.headers = dict()
         self.selected_FPA = "defaultFPA"
         self.configuration_selected = False
         self.display_FPA_menu = False
         self.current_board = ""
         self.extLinuxFile = "/boot/extlinux/extlinux.conf"
-        self.base_DTB = ""
         self.board_dtbo_template = ""
 
         self.current_configuration = dict()
@@ -555,17 +544,11 @@ class MainMenu(object):
         else:
             self.board_dtbo_template = "tegra234-p3767-camera-p3768-fr_"
 
-        FDTentryExists = subprocess.check_output(['cat /boot/extlinux/extlinux.conf | grep "FDT" | wc -l'], shell=True)
-        if FDTentryExists == b'0\n':
-            self._update_base_fdt()
-
-        overlayEntryExists = subprocess.check_output(['cat /boot/extlinux/extlinux.conf | grep "OVERLAYS" | wc -l'], shell=True)
-        if overlayEntryExists == b'0\n':
-            self._prepare_overlays_in_extlinux()
-
-        self._update_fpa_configuration()
-
-        self._update_port_configuration()
+        dtbos = [self._fpa_dtbo()] + self._port_dtbos()
+        names = [dtc.get_prop_value(os.path.join(DTBO_DIR, dtbo), '/', 'overlay-name', 0) or dtbo
+                 for dtbo in dtbos]
+        write_boot_entry(self.extLinuxFile, self.jetson.dtb, dtbos,
+                         "FRAMOS: " + ", ".join(names))
 
     def _update_extlinux_file_no_reboot(self):
         self._update_extlinux_file()
@@ -583,21 +566,7 @@ class MainMenu(object):
                         " or CTRL-C to abort")
         self.exit(messages, True)
 
-    def _update_base_fdt(self):
-        self.base_DTB = subprocess.check_output(["basename /boot/dtb/*"], shell=True).decode('utf-8').replace('\n', '')
-
-        updateCmd = "sed -i \"/MENU LABEL primary kernel/{N;N;s/$/\\n \ \ \ \ \ FDT \/boot\/dtb\/"
-        updateCmd += self.base_DTB
-        updateCmd += "/}\" "
-        updateCmd += self.extLinuxFile
-        subprocess.run([updateCmd], shell=True)
-
-    def _prepare_overlays_in_extlinux(self):
-        updateCmd = "sed -i '/FDT/{s/$/\\n \ \ \ \ \ OVERLAYS/}' "
-        updateCmd += self.extLinuxFile
-        subprocess.run([updateCmd], shell=True)
-
-    def _update_fpa_configuration(self):
+    def _fpa_dtbo(self):
         fpaDTBO = self.board_dtbo_template + "fpa";
         fpaDTBO += "_"
         fpaDTBO += self.selected_FPA.lower()
@@ -612,14 +581,11 @@ class MainMenu(object):
             messages.append("This script cannot continue.")
             messages.append("Press any key to exit.")
             self.exit(messages, False)
+        return fpaDTBO
 
-        updateCmd = f"sed -i 's/OVERLAYS.*/OVERLAYS \/boot\/framos\/dtbo\/{fpaDTBO}/' "
-        updateCmd += self.extLinuxFile
-        subprocess.run([updateCmd], shell=True)
-
-    def _update_port_configuration(self):
+    def _port_dtbos(self):
+        dtbos = []
         for port, sensor in self.current_configuration.items():
-            portDTBO = self.board_dtbo_template
             if sensor:
                 portDTBO = self.board_dtbo_template + sensor["sensor"].lower()
                 portDTBO += "-"
@@ -627,29 +593,18 @@ class MainMenu(object):
                 portDTBO += "-"
                 portDTBO += sensor["lanes"].lower()
                 portDTBO += "lane-overlay.dtbo"
-                
 
+                # a missing overlay is not applied
                 if not self._selected_dtbo_exists(portDTBO):
-                    messages = []
-                    messages.append(f"{portDTBO} not found in /boot/framos/dtbo directory")
-                    messages.append("This overlay will not be applied.")
                     continue
-                updateCmd = f"sed -i '/OVERLAYS/ s/$/,\/boot\/framos\/dtbo\/{portDTBO}/' "
-                updateCmd += self.extLinuxFile
-                subprocess.run([updateCmd], shell=True)
+                dtbos.append(portDTBO)
 
                 if sensor['gmsl'] == "GMSL":
                     gmslDTBO = self.board_dtbo_template + port.lower()
                     gmslDTBO += "-gmsl-overlay.dtbo"
-
-                    if not self._selected_dtbo_exists(gmslDTBO):
-                        messages = []
-                        messages.append(f"{gmslDTBO} not found in /boot/framos/dtbo directory")
-                        messages.append("This overlay will not be applied.")
-
-                    updateCmd = f"sed -i '/OVERLAYS/ s/$/,\/boot\/framos\/dtbo\/{gmslDTBO}/' "
-                    updateCmd += self.extLinuxFile
-                    subprocess.run([updateCmd], shell=True)
+                    if self._selected_dtbo_exists(gmslDTBO):
+                        dtbos.append(gmslDTBO)
+        return dtbos
 
     def _selected_dtbo_exists(self, dtbo):
         dtboPath = "/boot/framos/dtbo/" + dtbo
@@ -663,7 +618,7 @@ class MainMenu(object):
 
 class MainWindow(jetsonio.MainWindow):
     def __init__(self, screen, h, w):
-        title = " Jetson Config Camera v2.0.0 "
+        title = " Jetson Config Camera v2.1.0 "
         self.main = jetsonio.Window(screen, h, w, 1, 1)
         self.main.win.border('|', '|', '=', '=', ' ', ' ', ' ', ' ')
         self.main.addstr_centre(0, title)

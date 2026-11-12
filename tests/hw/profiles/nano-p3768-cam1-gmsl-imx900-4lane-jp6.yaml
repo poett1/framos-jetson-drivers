@@ -1,0 +1,32 @@
+# Reference run: Orin Nano Super devkit on stock Jetpack 6.2.1 (L4T 36.4.4) with FRAMOS' official
+# l4t-r36.4.4 driver (framosimaging/framos-jetson-drivers), installed per the FRAMOS wiki; IMX900 over GMSL3 via FPA-A/P22 cam1, 4 lanes. Argus uses the .isp override (camera_overrides.isp) on Jetpack 6.
+name: nano-p3768-cam1-gmsl-imx900-4lane-jp6
+dt_model: NVIDIA Jetson Orin Nano/NX Developer Kit (p3768)
+dt_compatible: ["nvidia,p3768-0000+p3767-0005-super", "nvidia,p3768-0000+p3767-0005"]
+gmsl: true
+sensor_dt_path: "/bus@0/cam_i2cmux/i2c@1/imx900_c@1a"
+devname: "imx900 9-001a"
+badge: imx900_rear_framos
+modules: [fr_imx900, fr_common, fr_max96792, fr_max96793]
+argus_tuning: isp
+# measured in the reference run of 2026-09-30 (commit a81671d)
+# The mode 5 Argus rate was measured before the suite pinned VIC (tests/hw/lib/clocks.py);
+# on stock Jetpack 7.2.1 the pin brings it to 117 fps, unchecked on Jetpack 6.
+known_failures:
+  "test_04_controls.py::test_defaults_after_boot": "l4t-r36.4.4 driver: frame_rate 1500000 and exposure 9 after boot (control minimum, not the DT defaults); fixed for 39.2.1 in 3367073"
+  "test_07_argus.py::test_argus_rate[mode5]": "stock Jetpack 6: Argus delivers 2064x1552 10-bit at 58-72 fps in the reference runs (also with the frame_rate control at 117000000; raw V4L2 streams the mode at 117)"
+
+controls:
+  defaults:
+    frame_rate: 72000000
+    exposure: 10000
+    gain: 0
+
+v4l2_modes:
+  - {name: 12-bit full, pixelformat: RG12, width: 2064, height: 1552, max_fps: 72.0}
+  - {name: 10-bit full, pixelformat: RG10, width: 2064, height: 1552, max_fps: 117.0}
+  - {name: 8-bit full, pixelformat: RGGB, width: 2064, height: 1552, max_fps: 125.0}
+
+argus_modes:
+  - {sensor_mode: 0, width: 2064, height: 1552, max_fps: 72.0}
+  - {sensor_mode: 5, width: 2064, height: 1552, max_fps: 117.0}

@@ -1,0 +1,35 @@
+# AGX Orin devkit, IMX900 directly on FPA-4.A/AGX J5, 4 lanes, stock Jetpack 7.2.1
+# Overlays: fr_fpa_4a_agx, fr_imx900-j5-4lane
+name: agx-fpa4a-j5-direct-imx900-4lane
+dt_model: NVIDIA Jetson AGX Orin Developer Kit
+dt_compatible: ["nvidia,p3737-0000+p3701-0005"]
+gmsl: false
+sensor_dt_path: "/bus@0/i2c@3180000/tca9548@70/i2c@0/imx900_a@1a"
+devname: "imx900 9-001a"
+badge: imx900_bottomleft_framos
+modules: [fr_imx900, fr_common]
+argus_tuning: nito
+
+controls:
+  defaults:
+    frame_rate: 72000000
+    exposure: 10000
+    gain: 0
+
+v4l2_modes:
+  - {name: 12-bit full, pixelformat: RG12, width: 2064, height: 1552, max_fps: 72.0}
+  - {name: 10-bit full, pixelformat: RG10, width: 2064, height: 1552, max_fps: 117.0}
+  - {name: 8-bit full, pixelformat: RGGB, width: 2064, height: 1552, max_fps: 125.0}
+  # 2048x1536 ROI: full-res rate x 1743/1727 lines (VMAX at 10-bit full res, minus 16 lines)
+  - {name: 12-bit 2048, pixelformat: RG12, width: 2048, height: 1536, max_fps: 72.7}
+  - {name: 10-bit 2048, pixelformat: RG10, width: 2048, height: 1536, max_fps: 118.1}
+  - {name: 8-bit 2048, pixelformat: RGGB, width: 2048, height: 1536, max_fps: 126.3}
+
+argus_modes:
+  # isp/imx900_bottomleft_framos.nito has knob sets for DT modes 0, 1, 2, 5, 6, 7; Argus
+  # looks up knob sets for sensor modes 0-7 only. Mode 2 (1032x776) runs at about 137 fps.
+  - {sensor_mode: 0, width: 2064, height: 1552, max_fps: 72.0}
+  - {sensor_mode: 1, width: 1920, height: 1080, max_fps: 100.0}
+  - {sensor_mode: 5, width: 2048, height: 1536, max_fps: 72.0}
+  - {sensor_mode: 6, width: 2064, height: 1552, max_fps: 117.0}
+  - {sensor_mode: 7, width: 1920, height: 1080, max_fps: 161.0}

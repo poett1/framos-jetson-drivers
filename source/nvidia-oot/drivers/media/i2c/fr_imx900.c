@@ -107,6 +107,9 @@ struct imx900 {
 	struct camera_common_data	*s_data;
 	struct tegracam_device		*tc_dev;
 	u8				chromacity;
+	int				last_dt_mode;
+	s64				fr_applied;
+	u32				dt_default_fr[MAX_NUM_SENSOR_MODES];
 };
 
 static bool imx900_is_volatile_reg(struct device *dev, unsigned int reg)
@@ -626,6 +629,10 @@ static int imx900_update_framerate_range(struct tegracam_device *tc_dev)
 		priv->min_frame_length = IMX900_ROI_MODE_HEIGHT + gmrwt +
 						gmrwt2*2 + gmtwt + gsdly + 56;
 		break;
+	case IMX900_MODE_ROI_2048x1536:
+		priv->min_frame_length = IMX900_ROI2_MODE_HEIGHT + gmrwt +
+						gmrwt2*2 + gmtwt + gsdly + 56;
+		break;
 	case IMX900_MODE_SUBSAMPLING2_1032x776:
 		if (priv->chromacity == IMX900_COLOR) {
 			priv->min_frame_length = IMX900_SUBSAMPLING2_MODE_HEIGHT
@@ -653,6 +660,98 @@ static int imx900_update_framerate_range(struct tegracam_device *tc_dev)
 
 	return 0;
 
+}
+
+/*
+ * Index of the DT mode for the selected size and pixel format. camera_common
+ * selects the mode by size only, so mode_prop_idx is the same for the 12-, 10-
+ * and 8-bit modes of one resolution.
+ */
+static int imx900_dt_mode(struct camera_common_data *s_data)
+{
+	const struct camera_common_frmfmt *frmfmt =
+				&s_data->frmfmt[s_data->mode_prop_idx];
+	int i;
+
+	for (i = 0; i < s_data->sensor_props.num_modes; i++) {
+		struct sensor_image_properties *image =
+			&s_data->sensor_props.sensor_modes[i].image_properties;
+
+		if (image->width == frmfmt->size.width &&
+		    image->height == frmfmt->size.height &&
+		    image->pixel_format == s_data->colorfmt->pix_fmt)
+			return i;
+	}
+
+	return -1;
+}
+
+/*
+ * When the DT mode changes, start the new mode at its DT default frame rate.
+ * Otherwise tegracam's stream-start override applies the frame rate left from
+ * the previous mode (e.g. 72 fps after DT mode 0 when switching to the 117 fps
+ * DT mode 6, 2064x1552 10-bit), and Argus, which requests one frame per
+ * 1/117 s, gets every second frame until it re-sends its settings.
+ *
+ * Only a value left from the previous stream is replaced. A value a V4L2
+ * client set since then (the control differs from fr_applied, the value at
+ * the last stream start or stop, also after the clamp of a format change) is
+ * kept, clamped to the new mode's range.
+ *
+ * The DT default comes from dt_default_fr, cached at probe:
+ * fr_update_ctrl_range() clamps default_framerate in the 12-bit DT node of
+ * each size to the computed maximum, e.g. after a stream at a low data rate.
+ *
+ * The control is only updated here, not written to the sensor: tegracam's
+ * stream-start override (override_enable) writes it once afterwards.
+ */
+static int imx900_set_mode_framerate(struct tegracam_device *tc_dev)
+{
+	struct imx900 *priv = (struct imx900 *)tegracam_get_privdata(tc_dev);
+	struct camera_common_data *s_data = tc_dev->s_data;
+	struct sensor_control_properties *range =
+		&s_data->sensor_props.sensor_modes[s_data->mode].control_properties;
+	struct v4l2_ctrl *ctrl;
+	int dt_mode = imx900_dt_mode(s_data);
+	s64 cur, left, def, val;
+	int err;
+
+	ctrl = fr_find_v4l2_ctrl(tc_dev, TEGRA_CAMERA_CID_FRAME_RATE);
+	if (!ctrl)
+		return 0;
+
+	cur = fr_get_v4l2_ctrl_value(tc_dev, TEGRA_CAMERA_CID_FRAME_RATE, CURRENT);
+	if (dt_mode < 0 || dt_mode == priv->last_dt_mode) {
+		priv->fr_applied = cur;
+		return 0;
+	}
+
+	/*
+	 * Setting the format narrows the range to the mode's last range and
+	 * clamps the value (e.g. 117 to 72 fps). Such a value is left over too.
+	 */
+	left = clamp_val(priv->fr_applied, ctrl->minimum, ctrl->maximum);
+	def = clamp_val((s64)priv->dt_default_fr[dt_mode],
+			range->min_framerate, range->max_framerate);
+	val = cur != priv->fr_applied && cur != left ?
+		clamp_val(cur, range->min_framerate, range->max_framerate) : def;
+
+	/* value first: modify_range then has nothing to clamp and calls no op */
+	v4l2_ctrl_lock(ctrl);
+	*ctrl->p_new.p_s64 = val;
+	*ctrl->p_cur.p_s64 = val;
+	err = __v4l2_ctrl_modify_range(ctrl, range->min_framerate,
+			range->max_framerate, range->step_framerate, def);
+	v4l2_ctrl_unlock(ctrl);
+	if (err)
+		return err;
+
+	priv->last_dt_mode = dt_mode;
+	priv->fr_applied = val;
+	dev_dbg(tc_dev->dev, "%s: DT mode %d, frame rate %lld\n",
+						__func__, dt_mode, val);
+
+	return 0;
 }
 
 static int imx900_set_operation_mode(struct tegracam_device *tc_dev, u32 val)
@@ -2278,6 +2377,7 @@ static int imx900_configure_shutter(struct tegracam_device *tc_dev)
 		vint_en |= 0x1C;
 		break;
 	case IMX900_MODE_ROI_1920x1080:
+	case IMX900_MODE_ROI_2048x1536:
 		vint_en |= 0x1C;
 		break;
 	case IMX900_MODE_SUBSAMPLING2_1032x776:
@@ -2350,6 +2450,7 @@ static int imx900_check_unsupported_mode(struct camera_common_data *s_data,
 	switch (s_data->mode) {
 	case IMX900_MODE_2064x1552:
 	case IMX900_MODE_ROI_1920x1080:
+	case IMX900_MODE_ROI_2048x1536:
 		switch (mf->code) {
 		case MEDIA_BUS_FMT_SGBRG8_1X8:
 			mf->code = MEDIA_BUS_FMT_SRGGB8_1X8;
@@ -2514,6 +2615,7 @@ static int imx900_set_mode_additional(struct tegracam_device *tc_dev)
 				mode_table[IMX900_MODE_ALLPIXEL_ROI]);
 		break;
 	case IMX900_MODE_ROI_1920x1080:
+	case IMX900_MODE_ROI_2048x1536:
 		err = imx900_write_table(priv,
 				mode_table[IMX900_MODE_ALLPIXEL_ROI]);
 		break;
@@ -2648,6 +2750,10 @@ static int imx900_set_mode(struct tegracam_device *tc_dev)
 	if (err)
 		goto fail;
 
+	err = imx900_set_mode_framerate(tc_dev);
+	if (err)
+		goto fail;
+
 	dev_dbg(dev, "%s: set mode %u\n", __func__, s_data->mode);
 
 	return 0;
@@ -2706,6 +2812,10 @@ static int imx900_stop_streaming(struct tegracam_device *tc_dev)
 	struct camera_common_data *s_data = tc_dev->s_data;
 	struct device *dev = tc_dev->dev;
 	int err;
+
+	/* a frame_rate that differs from this at the next start was set by a client */
+	priv->fr_applied = fr_get_v4l2_ctrl_value(tc_dev,
+					TEGRA_CAMERA_CID_FRAME_RATE, CURRENT);
 
 	if (!(strcmp(s_data->pdata->gmsl, "gmsl")))
 		max96792_stop_streaming(priv->s_data->dser_dev, dev);
@@ -3090,7 +3200,7 @@ static int imx900_probe(struct i2c_client *client,
 	struct tegracam_device *tc_dev;
 	struct imx900 *priv;
 	struct sensor_control_properties *ctrlprops = NULL;
-	int err;
+	int err, i;
 
 	dev_info(dev, "probing v4l2 sensor\n");
 
@@ -3169,6 +3279,15 @@ static int imx900_probe(struct i2c_client *client,
 		return err;
 
 	imx900_init_ctrl_defaults(tc_dev);
+	/* the control defaults above are DT mode 0's */
+	priv->last_dt_mode = 0;
+	priv->fr_applied = fr_get_v4l2_ctrl_value(tc_dev,
+					TEGRA_CAMERA_CID_FRAME_RATE, CURRENT);
+	/* fr_update_ctrl_range() later changes default_framerate in the DT data */
+	for (i = 0; i < priv->s_data->sensor_props.num_modes &&
+					i < MAX_NUM_SENSOR_MODES; i++)
+		priv->dt_default_fr[i] = priv->s_data->sensor_props
+				.sensor_modes[i].control_properties.default_framerate;
 
 	list_add_tail(&priv->entry, &imx900_sensor_list);
 

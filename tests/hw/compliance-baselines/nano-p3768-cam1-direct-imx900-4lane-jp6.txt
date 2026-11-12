@@ -1,0 +1,6 @@
+# v4l2-compliance failures accepted for nano-p3768-cam1-direct-imx900-4lane-jp6
+# written 2026-09-30 14:24:50 from commit ea939136, L4T 36.4.4 (stock Jetpack 6.2.1 + FRAMOS l4t-r36.4.4, direct)
+
+media: MEDIA_IOC_ENUM_ENTITIES/LINKS  # NVIDIA VI media graph: num_data_links != num_links
+media: MEDIA_IOC_G_TOPOLOGY  # NVIDIA nvcsi entity has an invalid entity function (subtype Unknown)
+subdev: VIDIOC_(UN)SUBSCRIBE_EVENT/DQEVENT  # tegracam subdev (NVIDIA camera framework) has no control events
