@@ -144,6 +144,28 @@ back and the added files removed. `dpkg -V nvidia-l4t-camera` was clean.
 The file is 958,476 bytes, like every NITO (the template's size), and about
 22 KB compressed.
 
+## Mode order for 2048x1536 10-bit in Argus (2026-11-12, evening)
+
+2048x1536 10-bit was DT mode 11 and out of Argus' reach (modes 0-7 only). The
+2048x1536 modes now follow full resolution in each bit-depth block: 2064x1552,
+2048x1536, 1920x1080, 1032x776, 2064x154, 1024x720. The sections above use
+the earlier numbers. The NITO was regenerated the same way, for modes 0, 1,
+2, 3, 6, 7 (all at or below 250 fps, so no binary cfg needed patching).
+`tests/hw` now also checks that each Argus sensor mode number selects the
+expected resolution (nvarguscamerasrc lists the modes; its output follows
+the caps, so the rate alone does not show the mode).
+
+| Argus mode | Mode | Argus |
+|---|---|---|
+| 0 | 2064x1552 12-bit | 71.98 fps |
+| 1 | 2048x1536 12-bit | 72.03 fps |
+| 2 | 1920x1080 12-bit | 100.08 fps |
+| 6 | 2064x1552 10-bit | 117.03 fps |
+| 7 | 2048x1536 10-bit | 117.10 fps |
+
+`tests/hw` without the after-boot controls check: 111 passed, 4 accepted
+compliance failures.
+
 ## Not tested
 
 - Connectors J6–J8, 1/2-lane configurations, more than one camera at a time.

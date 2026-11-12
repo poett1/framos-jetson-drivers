@@ -26,10 +26,10 @@ v4l2_modes:
   - {name: 8-bit 2048, pixelformat: RGGB, width: 2048, height: 1536, max_fps: 126.3}
 
 argus_modes:
-  # isp/imx900_bottomleft_framos.nito has knob sets for DT modes 0, 1, 2, 5, 6, 7; Argus
-  # looks up knob sets for sensor modes 0-7 only. Mode 2 (1032x776) runs at about 137 fps.
+  # isp/imx900_bottomleft_framos.nito has knob sets for DT modes 0, 1, 2, 3, 6, 7; Argus
+  # looks up knob sets for sensor modes 0-7 only. Mode 3 (1032x776) runs at about 137 fps.
   - {sensor_mode: 0, width: 2064, height: 1552, max_fps: 72.0}
-  - {sensor_mode: 1, width: 1920, height: 1080, max_fps: 100.0}
-  - {sensor_mode: 5, width: 2048, height: 1536, max_fps: 72.0}
+  - {sensor_mode: 1, width: 2048, height: 1536, max_fps: 72.0}
+  - {sensor_mode: 2, width: 1920, height: 1080, max_fps: 100.0}
   - {sensor_mode: 6, width: 2064, height: 1552, max_fps: 117.0}
-  - {sensor_mode: 7, width: 1920, height: 1080, max_fps: 161.0}
+  - {sensor_mode: 7, width: 2048, height: 1536, max_fps: 117.0}

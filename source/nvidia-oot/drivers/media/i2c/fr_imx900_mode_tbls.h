@@ -3048,11 +3048,11 @@ static const imx900_reg subsampling2_binning_MONO_594MBPS_1x12_4LANE[] = {
 enum {
 
 	IMX900_MODE_2064x1552,
+	IMX900_MODE_ROI_2048x1536,
 	IMX900_MODE_ROI_1920x1080,
 	IMX900_MODE_SUBSAMPLING2_1032x776,
 	IMX900_MODE_SUBSAMPLING10_2064x154,
 	IMX900_MODE_BINNING_CROP_1024x720,
-	IMX900_MODE_ROI_2048x1536,
 
 	IMX900_MODE_ALLPIXEL_ROI,
 	IMX900_MODE_SUBSAMPLING2_COLOR,
@@ -3435,6 +3435,13 @@ static const struct camera_common_frmfmt imx900_frmfmt[] = {
 		.mode = IMX900_MODE_2064x1552
 	},
 	{
+		.size = {IMX900_ROI2_MODE_WIDTH, IMX900_ROI2_MODE_HEIGHT},
+		.framerates = imx900_125fps,
+		.num_framerates = 1,
+		.hdr_en = false,
+		.mode = IMX900_MODE_ROI_2048x1536
+	},
+	{
 		.size = {IMX900_ROI_MODE_WIDTH, IMX900_ROI_MODE_HEIGHT},
 		.framerates = imx900_172fps,
 		.num_framerates = 1,
@@ -3464,13 +3471,6 @@ static const struct camera_common_frmfmt imx900_frmfmt[] = {
 		.num_framerates = 1,
 		.hdr_en = false,
 		.mode = IMX900_MODE_BINNING_CROP_1024x720
-	},
-	{
-		.size = {IMX900_ROI2_MODE_WIDTH, IMX900_ROI2_MODE_HEIGHT},
-		.framerates = imx900_125fps,
-		.num_framerates = 1,
-		.hdr_en = false,
-		.mode = IMX900_MODE_ROI_2048x1536
 	},
 };
 
