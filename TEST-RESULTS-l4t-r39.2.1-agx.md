@@ -89,8 +89,60 @@ recorded as a known failure.
   with `imx900_bottomleft_framos.nito`. Mode 5 (2048x1536) gets no frames:
   `GetKnobSetIdFromSensorModeIndex: Sensor mode index 5, knobSetId 0 not
   found`. The NITO has knob sets only for the two modes it was converted with.
-  Mode 1 (1920x1080), which predates this change, fails the same way. Argus at
-  2048x1536 needs a NITO converted with that mode as well.
+  Mode 1 (1920x1080), which predates this change, fails the same way. The
+  regenerated NITO (next section) fixes both.
+
+## NITO for the 2048x1536 and 1920x1080 modes (2026-11-12)
+
+`isp/imx900_bottomleft_framos.nito` was regenerated with NVIDIA's Jetson
+Customer IQ Migration Tools (r39.2.1, camera hotfix) on this board. Argus
+with the new file, stock camera libraries (`tests/hw -m argus`):
+
+| DT mode | Mode | Argus |
+|---|---|---|
+| 0 | 2064x1552 12-bit | 72.01 fps |
+| 1 | 1920x1080 12-bit | 99.98 fps |
+| 2 | 1032x776 12-bit | about 137 fps (DT maximum 250; not in the profile) |
+| 5 | 2048x1536 12-bit | 71.97 fps |
+| 6 | 2064x1552 10-bit | 116.99 fps |
+| 7 | 1920x1080 10-bit | 160.55 fps |
+
+Findings:
+
+- **Argus looks up tuning for sensor modes 0-7 only.** Knob sets made from
+  modes 8 and 11 (1032x776 and 2048x1536 10-bit) are in the file but Argus
+  reports `GetKnobSetIdFromSensorModeIndex: Sensor mode index 11, knobSetId 0
+  not found`. With the DT order of 12-bit, 10-bit, 8-bit blocks, 2048x1536
+  10-bit and all 8-bit modes cannot be used in Argus.
+- **Argus matches a knob set to a mode by size and bit depth, not by knob set
+  ID**: mode 7 works from knob set 5.
+- **Every NITO needs mode 0's knob set.** Argus initialises the ISP with mode
+  0. A NITO without a 2064x1552 12-bit knob set fails in every mode
+  (`NvCameraIspInitialize failed`).
+- **`nvcfg2nito` aborts when its source NITO holds a knob set whose mode
+  runs above about 250 fps.** The binary cfgs differ only in width, height, bit
+  depth and the DT maximum frame rate (float at offset 148). Modes 3, 8, 9
+  and 10 (377-632 fps) produce knob sets that can be written once but not read
+  back as the source of the next conversion (`Aborted`, exit 134). The
+  daemon's auto-conversion therefore also fails after such a mode.
+- 2064x154 (modes 3, 9): Argus sessions hang (`waitForIdle() timed out`).
+- 1024x720 (modes 4, 10): the driver changes 1024x720 to 2064x1552 on colour
+  sensors (binning is for mono). Argus then gets full-size frames and fails
+  with `Error 15`.
+
+Procedure: the hotfix files from `camera_hotfix.tbz2` were copied in place
+by hand (the installer works over SSH only), with the overwritten
+`libnvscf.so` and NITOs backed up. `IMX900_IRC650.isp` was installed as
+`/var/nvidia/nvcam/settings/camera_overrides.isp`, and `nvargus-daemon` was
+run with `NVCAMERA_NITO_PATH=CONFIG`. One Argus session per mode, modes 0-11
+(`nvarguscamerasrc sensor-mode=N`; `nvargus_nvraw` rejects the GBRG modes 2
+and 3), wrote `/root/binary_N.cfg`. The NITO was then built by chaining
+`nvcfg2nito` from the hotfix's `template.nito`: each run's output is the next
+run's `-s`. Order: modes 0, 1, 2, 5, 6, 7 into knob sets 0, 1, 2, 5, 6, 7.
+The badge name comes from the binary cfg. Afterwards the backups were put
+back and the added files removed. `dpkg -V nvidia-l4t-camera` was clean.
+The file is 958,476 bytes, like every NITO (the template's size), and about
+22 KB compressed.
 
 ## Not tested
 

@@ -90,12 +90,14 @@ conversion. NVIDIA's "Jetson Customer IQ Migration Tools" (camera hotfix,
 `nvcfg2nito`) do that on the Jetson from a Jetpack 6 `.isp` override; they are
 not part of this repository.
 
-Both NITO files hold tuning only for the two modes they were converted with:
-2064x1552 12-bit (`sensor-mode=0`) and 10-bit (`sensor-mode=6`). Argus gets no
-frames in any other mode ("GetKnobSetIdFromSensorModeIndex ... not found"),
-including the 2048x1536 modes (`sensor-mode=5`, 11, 17) and 1920x1080. Since
-the 2048x1536 modes were added, 10-bit full resolution is `sensor-mode=6`
-(it was 5), so pipelines that select mode 5 need updating.
+Argus uses tuning only for sensor modes 0-7, and a NITO holds at most eight
+knob sets. `imx900_bottomleft_framos.nito` (AGX) covers modes 0, 1, 2, 5, 6
+and 7: 2064x1552, 1920x1080, 1032x776 and 2048x1536 at 12 bit, 2064x1552 and
+1920x1080 at 10 bit. `imx900_rear_framos.nito` (Orin Nano/NX) covers modes 0
+and 6 only. Argus gets no frames in other modes ("GetKnobSetIdFromSensorModeIndex
+... not found"). Since the 2048x1536 modes were added, 10-bit full resolution
+is `sensor-mode=6` (it was 5), so pipelines that select mode 5 need updating.
+How the AGX file was made: [TEST-RESULTS-l4t-r39.2.1-agx.md](TEST-RESULTS-l4t-r39.2.1-agx.md).
 
 At the default clocks, `nvarguscamerasrc` delivers IMX900 mode 6 (2064x1552
 10-bit, 117 fps; mode 5 before the 2048x1536 modes were added) at 58.5 fps: the VIC clock, which converts each frame, stays

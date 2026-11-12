@@ -9,10 +9,6 @@ devname: "imx900 9-001a"
 badge: imx900_bottomleft_framos
 modules: [fr_imx900, fr_common]
 argus_tuning: nito
-# isp/imx900_bottomleft_framos.nito holds knob sets only for the two modes it was
-# converted with (2064x1552 12- and 10-bit); Argus rejects every other mode, e.g. 1920x1080
-known_failures:
-  "test_07_argus.py::test_argus_rate[mode5]": "2048x1536: no knob set in the NITO (nvargus-daemon: GetKnobSetIdFromSensorModeIndex: Sensor mode index 5, knobSetId 0 not found); needs a NITO converted with this mode"
 
 controls:
   defaults:
@@ -30,6 +26,10 @@ v4l2_modes:
   - {name: 8-bit 2048, pixelformat: RGGB, width: 2048, height: 1536, max_fps: 126.3}
 
 argus_modes:
+  # isp/imx900_bottomleft_framos.nito has knob sets for DT modes 0, 1, 2, 5, 6, 7; Argus
+  # looks up knob sets for sensor modes 0-7 only. Mode 2 (1032x776) runs at about 137 fps.
   - {sensor_mode: 0, width: 2064, height: 1552, max_fps: 72.0}
-  - {sensor_mode: 6, width: 2064, height: 1552, max_fps: 117.0}
+  - {sensor_mode: 1, width: 1920, height: 1080, max_fps: 100.0}
   - {sensor_mode: 5, width: 2048, height: 1536, max_fps: 72.0}
+  - {sensor_mode: 6, width: 2064, height: 1552, max_fps: 117.0}
+  - {sensor_mode: 7, width: 1920, height: 1080, max_fps: 161.0}
