@@ -23,4 +23,4 @@ v4l2_modes:
 
 argus_modes:
   - {sensor_mode: 0, width: 2064, height: 1552, max_fps: 72.0}
-  - {sensor_mode: 5, width: 2064, height: 1552, max_fps: 117.0}
+  - {sensor_mode: 6, width: 2064, height: 1552, max_fps: 117.0}
