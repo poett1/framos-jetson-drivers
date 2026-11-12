@@ -2,7 +2,8 @@
 
 nvarguscamerasrc converts each frame on VIC. On stock Jetpack 7.2.1 the VIC
 governor (tegra_wmark) settles at 166-192 MHz during a 2064x1552 capture, and
-Argus then delivers every second frame (mode 5: 58.5 instead of 117 fps). With
+Argus then delivers every second frame (DT mode 6, 2064x1552 10-bit: 58.5
+instead of 117 fps; mode 5 before the 2048x1536 modes were added). With
 VIC at its maximum the rate is 117 fps; the libargus samples without GStreamer
 reach 117 fps at the default clock."""
 

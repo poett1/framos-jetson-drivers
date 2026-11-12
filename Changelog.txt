@@ -58,3 +58,14 @@ l4t-r39.2.1 community port (2026-09-28)
         - isp/imx900_bottomleft_framos.nito regenerated: Argus runs DT modes
           0, 1, 2, 5, 6, 7 (2064x1552, 1920x1080, 1032x776, 2048x1536 12-bit;
           2064x1552, 1920x1080 10-bit); Argus uses tuning for modes 0-7 only
+    - review fixes (PR 1):
+        - fr_imx900: a frame_rate set between streams is kept across a mode
+          switch; DT default rates cached at probe (a low data rate no longer
+          lowers them); one frame-length write per stream start
+        - target_build.sh / modversions.py: no traceback without the OOT
+          headers package; imports from modules neither installed nor stock
+          are reported; no variables leak into the calling shell
+        - jetson-config tools / uninstall: FRAMOS overlays that the old
+          v2.0.0 tool put into the primary boot entry are removed
+        - tests/hw: Argus daemon log per InvocationID (no errors of the
+          stopping daemon); three frame-rate stream tests

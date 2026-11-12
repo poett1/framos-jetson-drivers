@@ -29,8 +29,8 @@ def test_daemon_errors():
 
 
 def test_pipeline_caps():
-    cmd = " ".join(pipeline({"sensor_mode": 5, "width": 2064, "height": 1552, "max_fps": 117.0}))
-    assert "sensor-mode=5" in cmd and "width=2064,height=1552,framerate=117/1" in cmd
+    cmd = " ".join(pipeline({"sensor_mode": 6, "width": 2064, "height": 1552, "max_fps": 117.0}))
+    assert "sensor-mode=6" in cmd and "width=2064,height=1552,framerate=117/1" in cmd
     assert "fpsdisplaysink" in cmd and "sync=false" in cmd
     assert "num-buffers=702" in cmd   # about 6 s at 117 fps, enough intervals after warm-up
 
