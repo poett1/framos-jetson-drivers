@@ -63,3 +63,12 @@ def test_daemon_log_covers_one_daemon_start_only():
     cmd = daemon_log_cmd("2c0f14b246ec40468016b9e378df763a")
     assert "_SYSTEMD_INVOCATION_ID=2c0f14b246ec40468016b9e378df763a" in cmd
     assert "--since" not in cmd and "-u" not in cmd
+
+
+def test_sensor_modes_listed_by_nvarguscamerasrc():
+    from lib.argus import sensor_modes
+    out = ("GST_ARGUS: Available Sensor modes :\n"
+           "GST_ARGUS: 2064 x 1552 FR = 72.071367 fps Duration = 13875000 ; Analog Gain range\n"
+           "GST_ARGUS: 2048 x 1536 FR = 72.000000 fps Duration = 13888889 ; Analog Gain range\n"
+           "GST_ARGUS: Running with following settings:\n")
+    assert sensor_modes(out) == [(2064, 1552), (2048, 1536)]

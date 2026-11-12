@@ -8,7 +8,8 @@ import subprocess
 
 import pytest
 
-from lib.argus import daemon_errors, failure_report, parse_fps, pipeline, tuning_file
+from lib.argus import (daemon_errors, failure_report, parse_fps, pipeline, sensor_modes,
+                       tuning_file)
 
 pytestmark = pytest.mark.argus
 
@@ -30,6 +31,11 @@ def test_argus_rate(profile, sensor, argus_mode, vic_max, argus_daemon, record_p
     fps = parse_fps(out)
     errors = daemon_errors(argus_daemon())
     record_property("fps", fps)
+    modes = sensor_modes(out)
+    n = argus_mode["sensor_mode"]
+    assert n < len(modes) and modes[n] == (argus_mode["width"], argus_mode["height"]), \
+        f"Argus sensor mode {n} is {modes[n] if n < len(modes) else 'missing'}, " \
+        f"not {argus_mode['width']}x{argus_mode['height']} (DT mode order)"
     assert fps is not None, failure_report("no frames from nvarguscamerasrc", out, errors)
     assert fps == pytest.approx(argus_mode["max_fps"], rel=profile["stream"]["rate_tolerance"])
     assert errors == [], failure_report("nvargus-daemon reported errors", out, errors)

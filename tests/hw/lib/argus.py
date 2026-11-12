@@ -9,6 +9,14 @@ CURRENT_RE = re.compile(r"current:\s*([\d.]+)")
 WARMUP_INTERVALS = 4  # fpsdisplaysink reports every 0.5 s: skip the first 2 s
 ARGUS_ERROR_RE = re.compile(r"NitoPath|knobSetId \d+ not found|"
                             r"NvCameraIsp\w* .*error|SCF: Error|\(NvCamV4l2\) Error", re.I)
+SENSOR_MODE_RE = re.compile(r"GST_ARGUS: (\d+) x (\d+) FR = ")
+
+
+def sensor_modes(text):
+    """(width, height) of each sensor mode, in Argus index order, as nvarguscamerasrc
+    lists them. The output size follows the caps (the ISP scales), so only this list
+    shows which sensor mode a sensor-mode number selects."""
+    return [(int(w), int(h)) for w, h in SENSOR_MODE_RE.findall(text)]
 
 
 def tuning_file(profile, settings_dir=SETTINGS_DIR):
